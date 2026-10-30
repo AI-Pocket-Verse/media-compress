@@ -1,0 +1,42 @@
+{
+  "name": "@media-compress/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "prisma generate",
+    "dev": "tsx watch --env-file=.env.dev src/index.ts",
+    "build": "tsc",
+    "start": "node --env-file=.env.prod dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "db:migrate": "node --env-file=.env.dev node_modules/prisma/build/index.js migrate dev",
+    "db:migrate:prod": "node --env-file=.env.prod node_modules/prisma/build/index.js migrate deploy",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@media-compress/api-kit": "workspace:*",
+    "@media-compress/auth-client-api": "workspace:*",
+    "@media-compress/db-kit": "workspace:*",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/multipart": "^10.0.0",
+    "@fastify/rate-limit": "^11.0.0",
+    "@fastify/static": "^9.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "@prisma/client": "5.22.0",
+    "archiver": "^7.0.1",
+    "fastify": "5.10.0",
+    "p-queue": "^8.0.1",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@media-compress/tsconfig": "workspace:*",
+    "@types/archiver": "^6.0.3",
+    "@types/node": "^20.14.10",
+    "prisma": "5.22.0",
+    "tsx": "^4.16.2",
+    "typescript": "5.4.5",
+    "vitest": "2.0.5"
+  }
+}

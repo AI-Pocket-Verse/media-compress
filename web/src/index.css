@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg text-fg font-sans;
+}
+
+/* Original visual flourishes — preserved so the migrated UI matches ai-media-compress */
+.card {
+  background: white;
+  border-radius: 20px;
+  box-shadow:
+    0 2px 8px rgba(99, 102, 241, 0.07),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.drop-zone {
+  background: linear-gradient(135deg, #eef2ff, #faf5ff);
+  border: 2px dashed #a5b4fc;
+  transition: all 0.2s;
+}
+.drop-zone:hover,
+.drop-zone.dragging {
+  border-color: #6366f1;
+  background: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+}
+
+.progress-track { background: #e8eeff; }
+.file-row:hover { background: #f8faff; }
+
+.step-done { border-color: #10b981; color: #10b981; background: #ecfdf5; }
+.step-active { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+.step-todo { border-color: #e5e7eb; color: #9ca3af; background: white; }
+
+.wm-box { position: absolute; border: 2px solid #f59e0b; background: rgba(245, 158, 11, 0.18); border-radius: 4px; pointer-events: none; }
+.wm-box .lbl { position: absolute; top: -18px; left: 0; background: #f59e0b; color: white; font-size: 9px; padding: 1px 6px; border-radius: 3px 3px 0 0; white-space: nowrap; pointer-events: none; }
+.wm-box .del { position: absolute; top: -8px; right: -8px; width: 16px; height: 16px; background: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; color: white; cursor: pointer; pointer-events: auto; }
+.wm-box .wm-resize { position: absolute; bottom: -6px; right: -6px; width: 12px; height: 12px; background: #f59e0b; border: 1.5px solid white; border-radius: 2px; cursor: se-resize; pointer-events: auto; }
+.wm-draft { position: absolute; border: 2px dashed #6366f1; background: rgba(99, 102, 241, 0.15); pointer-events: none; border-radius: 4px; }
+.wm-media { user-select: none; -webkit-user-drag: none; pointer-events: none; }
+
+@keyframes wm-stripe-flow { from { background-position: 0 0; } to { background-position: 24px 0; } }
+.wm-stripe-animate {
+  background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.4) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0.4) 75%, transparent 75%, transparent);
+  background-size: 24px 24px;
+  animation: wm-stripe-flow 0.8s linear infinite;
+}
+
+/* 标题左侧 logo —— 轻微上下浮动 + 呼吸缩放 + 柔和的靛蓝光晕。 */
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0) scale(1);        filter: drop-shadow(0 2px 4px rgba(99, 102, 241, 0.20)); }
+  50%      { transform: translateY(-2px) scale(1.06);  filter: drop-shadow(0 5px 12px rgba(99, 102, 241, 0.35)); }
+}
+.logo-anim {
+  animation: logo-float 3s ease-in-out infinite;
+  will-change: transform, filter;
+}
+/* 尊重「减少动态效果」偏好：关掉动画，保留静态 logo。 */
+@media (prefers-reduced-motion: reduce) {
+  .logo-anim { animation: none; }
+}

@@ -1,0 +1,5 @@
+{
+  "extends": "@media-compress/tsconfig/api.json",
+  "include": ["src"],
+  "compilerOptions": { "noEmit": true }
+}

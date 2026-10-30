@@ -1,0 +1,34 @@
+{
+  "name": "media-compress",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted image & video compression and watermark removal, powered by FFmpeg",
+  "license": "MIT",
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.6",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "bootstrap": "node -e \"const fs=require('fs');if(!fs.existsSync('api/.env.dev'))fs.copyFileSync('api/.env.example','api/.env.dev')\" && pnpm --filter @media-compress/api db:migrate",
+    "dev": "pnpm --parallel --filter @media-compress/api --filter @media-compress/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "@remix-run/router": ">=1.23.2",
+      "react-router": ">=6.30.4 <7",
+      "react-router-dom": ">=6.30.4 <7",
+      "vite": ">=5.4.21 <6",
+      "esbuild": ">=0.25.0 <0.26",
+      "vitest": ">=2.1.9 <3",
+      "micromatch": ">=4.0.8"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+// media-compress — task store (SQLite via Prisma).
+// db-kit enables WAL on startup; migrations are applied with `prisma migrate`.
+generator client {
+  provider = "prisma-client-js"
+  // Generated into api/generated/prisma (gitignored; `pnpm install` runs
+  // `prisma generate`). src/ and dist/ are both siblings of generated/, so the
+  // relative import resolves the same in dev (tsx) and prod (node dist).
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// One row per upload (compress or watermark job). The nested objects
+// (input/output/options/result) are stored as JSON-encoded TEXT columns —
+// Prisma's SQLite connector has no native JSON type, and the task-store layer
+// owns (de)serialization so the public Task shape is unchanged.
+model Task {
+  id             String   @id
+  // 'compress' | 'watermark'
+  type           String
+  // 'pending' | 'processing' | 'done' | 'failed'
+  status         String
+  // Owner user id ('local' in local mode, the SSO user id otherwise).
+  ownerUserId    String   @map("owner_user_id")
+
+  // JSON blobs (see task-store.ts mappers).
+  input          String // FileInfo
+  output         String? // OutputInfo
+  options        String // Record<string, unknown> & { regions? }
+  result         String? // CompressionResult
+  error          String?
+
+  createdAt      DateTime @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  lastAccessedAt DateTime @map("last_accessed_at")
+
+  // list() filters by owner; cleaner/worker scan all then filter in-process.
+  @@index([ownerUserId])
+  @@map("tasks")
+}
