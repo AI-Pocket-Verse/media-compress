@@ -3,34 +3,21 @@
  *
  * 每个 web app 只需:
  *   presets: [require('@media-compress/tailwind-preset')]
- * 并且【不再自带 colors】。规范见 docs/design-system.md §3。
+ * 并且【不再自带 colors】。
  *
  * ⚠️ 颜色一律映射成 `rgb(var(--x) / <alpha-value>)` 而非 `var(--x)`。
  *    Tailwind 的 <alpha-value> 占位符要求【通道值】,写成完整色值会让 bg-accent/90
- *    这类透明度修饰符【静默失效】—— 不报错,但透明度不生效。全仓有 181 处依赖它。
- *    见 docs/design-system.md §3.1。
+ *    这类透明度修饰符【静默失效】—— 不报错,但透明度不生效。
  *
  * 色值本身不在这里,在 @media-compress/design-tokens 的 structure.css + skins/*.css。
  * 改颜色永远只改那一个包。
  */
 
 /**
- * 【过渡期 fallback,迁移完就整段删掉】
- *
- * 这个 preset 是 6 个 web app 的活依赖,改它等于当场改所有产品。
- * 而 CSS 变量只有【引入了 design-tokens 的 structure.css + skins/*.css】的产品才有;
- * 没引入的产品拿到的是 `var(--radius-lg)` 这种悬空引用 —— 浏览器把整条声明【直接丢弃】,
- * 表现为圆角全变直角、阴影全消失、body 没有背景色,而且 Tailwind 不会报任何错。
- *
- * 实测:auto-chat 103 处圆角 + 6 处阴影、media-compress 53 + 8、resume 42 + 3、
- * chat 24 + 0、ai-model 0 + 4,一次全废。
- *
- * 所以每个 token 都带一个 fallback,取值 = 改造【之前】那一版 preset 的值:
- *   - 没迁移的产品 → 拿 fallback → 视觉与改造前完全一致
- *   - 迁移过的产品 → 变量有定义 → 自动切到新体系
- * 这样「建设期只动 packages、应用期一个产品一个产品切」的约定才真正成立。
- *
- * 产品迁移完(index.css 都引入了 structure + skins)后,把 LEGACY 与所有 fallback 删掉。
+ * 每个 token 都带一个 fallback(LEGACY):CSS 变量只有引入了 design-tokens 的
+ * structure.css + skins/*.css 才有定义;没引入时 `var(--radius-lg)` 是悬空引用,
+ * 浏览器会把整条声明直接丢弃(圆角变直角、阴影消失),Tailwind 也不会报错。
+ * fallback 保证没引入 token 的页面仍有一套可用的默认视觉。
  */
 const LEGACY = {
   // 表面/文本/描边:旧 preset 是深色系(design-tokens/tailwind.cjs)
@@ -45,8 +32,7 @@ const LEGACY = {
   'line-strong': '37 43 56', // 旧版无此 token
   accent: '167 139 250', // #a78bfa
   'accent-fg': '26 18 38', // #1a1226(旧 accent.foreground)
-  // 旧 preset 没有这个 token(遮罩当时是各产品写死的 bg-black/30),所以没有「改造前的值」
-  // 可取;给 0 0 0 是为了让未迁移产品若用上 bg-overlay 也仍是深色遮罩,不会翻浅。
+  // 给 0 0 0 是为了让未引入 token 的页面用上 bg-overlay 时仍是深色遮罩,不会翻浅。
   overlay: '0 0 0',
   // 导航:旧版无这三个 token,取最接近的旧值
   'nav-active-bg': '20 24 33',
@@ -110,7 +96,7 @@ module.exports = {
         'nav-group': c('nav-group'),
 
         // ── 语义三梯度 ──  bg-danger-bg / text-danger-fg / border-danger-line
-        // 这是吃掉全仓 781 处硬编码色的机制,对应调色板的 50 / 700 / 200 三档用法
+        // 用来替代硬编码色,对应调色板的 50 / 700 / 200 三档用法
         success: { bg: c('success-bg'), fg: c('success-fg'), line: c('success-line') },
         warning: { bg: c('warning-bg'), fg: c('warning-fg'), line: c('warning-line') },
         danger: { bg: c('danger-bg'), fg: c('danger-fg'), line: c('danger-line') },
@@ -118,12 +104,10 @@ module.exports = {
       },
 
       // 圆角 4 档。用 extend 合并,Tailwind 自带的 full / 3xl 仍可用
-      //(rounded-full 全仓 122 处,不能弄丢)。
+      //(rounded-full 很常用,不能弄丢)。
       //
       // DEFAULT 与 2xl 【必须显式列出】:旧 preset 定义过它们(0.5rem / 1.5rem),
-      // 不列的话会掉回 Tailwind 默认(0.25rem / 1rem),未迁移产品的圆角会当场变小 ——
-      // 裸 rounded 与 rounded-2xl 在 auto-chat/resume/chat/media-compress 里共 71 处。
-      // 迁移后它们收敛到 md / xl 两档,与「7 档收敛成 4 档」一致。
+      // 不列的话会掉回 Tailwind 默认(0.25rem / 1rem),未引入 token 时圆角会变小。
       borderRadius: {
         DEFAULT: 'var(--radius-md, 0.5rem)',
         sm: 'var(--radius-sm, 0.25rem)',
@@ -134,8 +118,8 @@ module.exports = {
       },
 
       // 阴影 4 档,颜色走皮肤层的 --shadow-color(深色皮肤只改那一个 token)。
-      // 刻意【不定义 xl/2xl】—— 应用期把产品里的 shadow-xl 收敛到 shadow-lg,
-      // 否则它们会保留 Tailwind 写死的颜色,不跟随皮肤。见 docs/design-system.md §4.1。
+      // 刻意【不定义 xl/2xl】—— 用 shadow-lg 代替,否则它们会保留 Tailwind 写死的颜色,
+      // 不跟随皮肤。
       //
       // fallback = Tailwind 自带的同名阴影(旧 preset 只覆盖了 glass,sm/md/lg 用的就是它们)。
       // var() 的 fallback 是「第一个逗号之后的全部内容」,所以多段阴影可以整段当 fallback。
@@ -147,7 +131,7 @@ module.exports = {
       },
 
       // 字体【家族】共享;字体【大小】不定义,直接用 Tailwind 默认的 text-xs…text-2xl。
-      // 重定义字号会静默改掉全仓 431 处现有写法,见 docs/design-system.md §4.1。
+      // 重定义字号会静默改掉所有现有写法。
       fontFamily: {
         // 飞书云文档同款栈:拉丁走系统字体,中文走 PingFang SC,末尾接 emoji
         sans: [
@@ -155,7 +139,7 @@ module.exports = {
           'PingFang SC', 'Microsoft Yahei', 'Arial', 'Hiragino Sans GB', 'sans-serif',
           'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji',
         ],
-        // 命令、路径、URL 一律等宽,见 docs/design-system.md §5
+        // 命令、路径、URL 一律等宽
         mono: ['ui-monospace', 'SFMono-Regular', 'SF Mono', 'Menlo', 'Consolas', 'monospace'],
       },
     },

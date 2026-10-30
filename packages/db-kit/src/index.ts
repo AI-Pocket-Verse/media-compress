@@ -5,7 +5,7 @@
  *   - Prisma WAL bootstrap (SQLite)
  *   - Graceful shutdown
  *   - AES-256-GCM helpers for at-rest encryption of sensitive fields
- *     (used by apps/auth to store Feishu user_access_token / refresh_token)
+ *     (e.g. for storing OAuth tokens at rest)
  *
  * Each app owns its own Prisma schema; db-kit only ships helpers.
  */

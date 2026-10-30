@@ -78,7 +78,7 @@ ffmpeg -y -i input.jpg -vf "delogo=x={x}:y={y}:w={w}:h={h}" output.jpg`}
           <Info className="w-4 h-4 text-indigo-400" /> 关于
         </h2>
         <dl className="text-sm space-y-2">
-          <div className="flex gap-3"><dt className="text-gray-400 w-24">产品</dt><dd className="text-gray-700">Media Compress</dd></div>
+          <div className="flex gap-3"><dt className="text-gray-400 w-24">产品</dt><dd className="text-gray-700">Media Compress · Jeman 宇宙</dd></div>
           <div className="flex gap-3"><dt className="text-gray-400 w-24">版本</dt><dd className="text-gray-700">V1.0</dd></div>
           <div className="flex gap-3"><dt className="text-gray-400 w-24">处理引擎</dt><dd className="text-gray-700">FFmpeg · libwebp · libx264 · delogo</dd></div>
           <div className="flex gap-3"><dt className="text-gray-400 w-24">轮询间隔</dt><dd className="text-gray-700">2 秒</dd></div>

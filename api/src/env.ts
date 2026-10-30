@@ -34,8 +34,8 @@ const Env = z.object({
   FFMPEG_PATH: z.string().default('ffmpeg'),
   FFPROBE_PATH: z.string().default('ffprobe'),
 
-  // Optional SSO: the feishu-sso whoami endpoint. Unset → local single-user mode.
-  WHOAMI_URL: z.string().url().optional(),
+  // Optional SSO: the feishu-sso whoami endpoint. Unset or empty → local single-user mode.
+  WHOAMI_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   // Same-origin reverse proxy → leave empty; for direct cross-origin browser access set explicit allowlist.
   CORS_ORIGINS: z.string().default(''),
 })
