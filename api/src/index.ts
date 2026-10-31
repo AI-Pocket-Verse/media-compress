@@ -19,7 +19,7 @@ import { uploadRoutes } from './routes/upload'
 import { watermarkRoutes } from './routes/watermark'
 import { initWorker, recoverPendingOnStartup, shutdownWorker } from './services/worker'
 
-const app = Fastify({ logger: false, bodyLimit: env.MAX_UPLOAD_BYTES })
+const app = Fastify({ logger: false, bodyLimit: env.MAX_UPLOAD_BYTES, trustProxy: env.TRUST_PROXY })
 
 // Ensure storage roots exist
 await Promise.all(

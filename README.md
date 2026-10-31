@@ -5,7 +5,7 @@
 - **压缩**：简单模式（APP / 均衡 / 最小体积 / 高画质四档预设），或高级模式自定画质、CRF、码率、分辨率与输出格式
 - **去水印**：框选区域，用 FFmpeg `delogo` 滤镜按周边像素插值抹除
 - **文件管理**：任务列表、前后对比预览、单个或批量下载，按容量与时间自动清理旧文件
-- **支持格式**：输出 jpg / png / webp / gif / bmp / mp4 / webm / mov / mkv / avi / m4v
+- **支持格式**：图片输出 jpg / png / webp / gif / bmp，视频输出 mp4 / webm / mov / mkv / avi / m4v。图片与视频不能互转（视频选图片格式会被拒绝）；动图转 jpg / png / bmp 只取首帧；视频保持原格式时，ogv / wmv 会改输出 mp4。视频输出统一转成 8-bit yuv420p（浏览器兼容性优先，HDR / 10-bit 源会损失色彩范围）
 
 技术栈：Fastify + Prisma（SQLite）后端，React + Vite + Tailwind 前端，pnpm workspace 管理。
 
@@ -20,6 +20,8 @@ pnpm dev         # 同时启动 api（:4010）和 web（:5010）
 ```
 
 打开 <http://localhost:5010> 即可使用。默认是**本地单用户模式**：无需登录，所有任务归属同一个本地用户。
+
+> **安全提示**：本地单用户模式没有任何登录或鉴权，默认只监听 `127.0.0.1`。如果把 `HOST` 改成 `0.0.0.0` 或放到公网，任何能访问到端口的人都能上传、处理、下载和删除文件；对外提供服务请先接入登录（见「可选：飞书登录」）并放在反向代理之后。
 
 上传文件、处理结果和缩略图存放在 `api/data/`，数据库在 `api/prisma/dev.db`，两者都已被 git 忽略。
 
@@ -39,12 +41,17 @@ api 用 Node 原生的 `--env-file` 加载配置：`pnpm dev` 读 `api/.env.dev`
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
+| `HOST` / `PORT` | `127.0.0.1` / `4010` | api 监听地址；见上方安全提示 |
+| `TRUST_PROXY` | `loopback` | 信任的反向代理地址（Fastify `trustProxy`），限流按真实客户端 IP 分桶。同机 nginx 反代用默认值即可，不经反代直连也无需改；不要设为 `true` |
 | `DATABASE_URL` | — | SQLite 路径，相对路径以 `api/prisma/` 为基准；生产建议写绝对路径 |
 | `BASE_DIR` | `./data` | 上传、输出、缩略图、清理日志的根目录 |
 | `FFMPEG_PATH` / `FFPROBE_PATH` | `ffmpeg` / `ffprobe` | FFmpeg 可执行文件 |
 | `WORKER_COUNT` | `1` | 并发处理数 |
 | `MAX_UPLOAD_BYTES` | 2 GB | 单文件上传上限 |
-| `MAX_STORAGE_BYTES` / `MAX_AGE_DAYS` | 5 GB / 180 天 | 自动清理阈值 |
+| `MAX_STORAGE_BYTES` / `MAX_AGE_DAYS` | 5 GB / 180 天 | 自动清理阈值。容量是每个用户的软限制：`PROTECTION_DAYS` 内访问过的任务不会因超容量被淘汰 |
+| `PROTECTION_DAYS` / `LRU_CLEANUP_BYTES` | 30 天 / 1 GB | 超容量时的保护期，以及单次清理的目标释放量 |
+| `FFMPEG_TIMEOUT_MS` | 600000 | 单个任务的 FFmpeg 超时（毫秒），超时任务标记失败并清除半成品 |
+| `CORS_ORIGINS` | 空 | 同源部署（Vite 代理 / nginx）留空；跨域直连时填逗号分隔的来源 |
 | `WHOAMI_URL` | 未设置 | 设置后启用飞书登录，见下节 |
 
 ## FFmpeg 要求
@@ -79,6 +86,8 @@ api 启动时会检测一次，日志里打印 `ffmpeg: ok` 或不支持的输�
 3. web 构建时设置 `VITE_SSO_BASE=/auth`（可写在 `web/.env.local`）。
 
 两端需同时配置：只配一端时，前端与后端对「当前用户」的判断会不一致。
+
+nginx 模板把 `X-Forwarded-For` 设为 `$remote_addr`（覆盖而不是追加），配合 `TRUST_PROXY=loopback`，客户端无法伪造来源 IP 绕过限流。api 不在本机、或前面还有一层代理时，把 `TRUST_PROXY` 改成实际代理的地址或网段。
 
 ## 部署
 

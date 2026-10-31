@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { getMediaType, type MediaType } from '../config/file-types'
@@ -12,6 +13,22 @@ const CRF_MAP: Record<string, number> = { smallest: 35, balanced: 23, highest: 1
 function isWebm(output: string): boolean {
   return path.extname(output).toLowerCase() === '.webm'
 }
+
+// libvpx-vp9 默认 cpu-used 0 且单线程行并行，10 秒 1080p 约 65 秒；
+// row-mt + good/cpu-used 4 实测降到 11 秒左右，体积约增 8%。
+const VP9_FAST = ['-row-mt', '1', '-deadline', 'good', '-cpu-used', '4']
+
+// 非 yuv420p（10-bit / 4:2:2 / 4:4:4）的源直接编码，浏览器与 QuickTime 播不了。
+// 代价是 HDR 源的色彩范围被压成 8-bit SDR。
+const PIX_FMT = ['-pix_fmt', 'yuv420p']
+
+// 保证宽高为偶数；libx264 / yuv420p 遇到奇数宽高会直接失败。
+const EVEN_SCALE = 'scale=trunc(iw/2)*2:trunc(ih/2)*2'
+
+// 保持原格式时，H.264 + AAC 能放进去的视频容器；其余（ogv、wmv）改输出 mp4。
+const KEEPABLE_VIDEO_EXTS = new Set([
+  '.mp4', '.mov', '.mkv', '.avi', '.m4v', '.webm', '.ts', '.flv', '.3gp', '.mts', '.m2ts',
+])
 
 function audioFlags(choice: string, webm: boolean): string[] {
   // Copying into WebM fails for the common AAC source, so WebM always re-encodes.
@@ -56,12 +73,18 @@ export function scaleFilter(resolution: string | undefined | null, mediaType: Me
   return mediaType === 'video' ? `${base}:force_divisible_by=2` : base
 }
 
-function outputFilename(taskId: string, original: string, format: string | undefined): string {
+export function outputFilename(
+  taskId: string,
+  original: string,
+  format: string | undefined,
+  mediaType: MediaType,
+): string {
   const stem = path.basename(original, path.extname(original))
   const origExt = path.extname(original).toLowerCase()
+  const keepExt = mediaType === 'video' && !KEEPABLE_VIDEO_EXTS.has(origExt) ? '.mp4' : origExt
   const ext = format && format !== 'original' && format !== ''
     ? '.' + format.toLowerCase().replace(/^\./, '')
-    : origExt
+    : keepExt
   return `${taskId.slice(0, 8)}_${stem}_compressed${ext}`
 }
 
@@ -87,14 +110,15 @@ export function buildCompressCommand(
 
   if (mode === 'simple' && preset === 'mobile') {
     if (mediaType === 'video') {
-      const vf = [scale, 'fps=30'].filter(Boolean).join(',')
+      const vf = [scale ?? EVEN_SCALE, 'fps=30'].join(',')
       const video = webm
-        ? ['-c:v', 'libvpx-vp9', '-crf', '23', '-b:v', '0']
+        ? ['-c:v', 'libvpx-vp9', '-crf', '23', '-b:v', '0', ...VP9_FAST]
         : ['-c:v', 'libx264', '-preset', 'medium', '-crf', '23']
       return [
         '-y', '-i', input,
         '-vf', vf,
         ...video,
+        ...PIX_FMT,
         ...audioFlags(resolveAudio(options, preset), webm),
         ...(webm ? [] : ['-movflags', '+faststart']),
         output,
@@ -107,13 +131,15 @@ export function buildCompressCommand(
   }
 
   const cmd: string[] = ['-y', '-i', input]
-  if (scale) cmd.push('-vf', scale)
+  if (mediaType === 'video') cmd.push('-vf', scale ?? EVEN_SCALE)
+  else if (scale) cmd.push('-vf', scale)
 
   if (mediaType === 'video') {
     const crf = mode === 'advanced'
       ? (options.crf as number | undefined)
       : CRF_MAP[preset] ?? 23
-    cmd.push('-c:v', webm ? 'libvpx-vp9' : 'libx264', '-crf', String(crf ?? 23))
+    cmd.push('-c:v', webm ? 'libvpx-vp9' : 'libx264', '-crf', String(crf ?? 23), ...PIX_FMT)
+    if (webm) cmd.push(...VP9_FAST)
     // libvpx-vp9 needs -b:v 0 for constant-quality CRF; otherwise it caps
     // at its default target bitrate.
     if (options.bitrate) cmd.push('-b:v', String(options.bitrate))
@@ -122,6 +148,8 @@ export function buildCompressCommand(
     cmd.push(...audioFlags(resolveAudio(options, preset), webm))
   } else {
     const outExt = path.extname(output).toLowerCase()
+    // 动图（gif 等）转单帧格式只取首帧，否则 image2 复用同名输出会报错。
+    if (['.jpg', '.jpeg', '.png', '.bmp'].includes(outExt)) cmd.push('-frames:v', '1')
     const quality = mode === 'advanced' && options.quality != null
       ? Number(options.quality)
       : QUALITY_MAP[preset] ?? 75
@@ -148,26 +176,65 @@ export async function compress(
   originalFilename: string,
 ): Promise<string> {
   const mediaType = getMediaType(originalFilename)
-  const outName = outputFilename(taskId, originalFilename, options.output_format as string | undefined)
+  const outName = outputFilename(taskId, originalFilename, options.output_format as string | undefined, mediaType)
   const outPath = path.join(env.OUTPUT_DIR, outName)
   const args = buildCompressCommand(inputPath, outPath, options, mediaType)
-  await runFfmpeg(args, env.FFMPEG_TIMEOUT_MS)
+  try {
+    await runFfmpeg(args, env.FFMPEG_TIMEOUT_MS)
+  } catch (e) {
+    await removePartialOutput(outPath)
+    throw e
+  }
   return outPath
+}
+
+// 失败或超时时 ffmpeg 可能已经创建了输出文件，没有任务认领它就永远清不掉。
+export async function removePartialOutput(outPath: string): Promise<void> {
+  await unlink(outPath).catch(() => { /* 文件可能根本没创建 */ })
+}
+
+/** ffmpeg 失败的稳定错误码，存进任务 error 字段的前缀。 */
+export class FfmpegError extends Error {
+  constructor(public code: 'ffmpeg_failed' | 'ffmpeg_timeout' | 'ffmpeg_unavailable', detail: string) {
+    super(`${code}: ${detail}`)
+  }
+}
+
+/**
+ * 把 ffmpeg 的 stderr 整理成可返回给用户的短文本：只留末尾 3 行，
+ * 绝对路径缩成文件名（避免泄露服务器目录），整体不超过 400 字符。
+ * 完整 stderr 由调用方写日志。
+ */
+export function sanitizeFfmpegError(stderr: string): string {
+  const lines = stderr.split('\n').map((l) => l.trim()).filter(Boolean).slice(-3)
+  return lines
+    .join(' | ')
+    .replace(/(?:\/[^\s'"|:]+)+/g, (p) => path.basename(p))
+    .slice(0, 400)
 }
 
 export function runFfmpeg(args: string[], timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(env.FFMPEG_PATH, args)
+    // -loglevel error：stderr 里不带版本横幅和编译参数。
+    const child = spawn(env.FFMPEG_PATH, ['-hide_banner', '-nostats', '-loglevel', 'error', ...args])
     let stderr = ''
+    let timedOut = false
     const timer = setTimeout(() => {
+      timedOut = true
       child.kill('SIGKILL')
-      reject(new Error(`ffmpeg timed out after ${Math.round(timeoutMs / 1000)}s`))
     }, timeoutMs)
     child.stderr.on('data', (d) => (stderr += d.toString()))
+    // 等进程真正退出再 reject，调用方随后清理半成品才不会和 ffmpeg 抢文件。
     child.on('close', (code) => {
       clearTimeout(timer)
-      if (code === 0) resolve()
-      else reject(new Error(stderr.trim() || `ffmpeg exited ${code}`))
+      if (timedOut) {
+        reject(new FfmpegError('ffmpeg_timeout', `ffmpeg timed out after ${Math.round(timeoutMs / 1000)}s`))
+      } else if (code === 0) {
+        resolve()
+      } else {
+        console.error(`[ffmpeg] exited ${code}:\n${stderr.trim()}`)
+        reject(new FfmpegError('ffmpeg_failed', sanitizeFfmpegError(stderr) || `ffmpeg exited ${code}`))
+      }
     })
     child.on('error', (e) => {
       clearTimeout(timer)

@@ -7,7 +7,7 @@ import { env } from '../env'
 
 import { probeFile, type ProbeResult } from '../utils/probe'
 
-import { compress } from './compressor'
+import { compress, FfmpegError } from './compressor'
 import { removeWatermark, type Region } from './delogo'
 import { taskStore, type Task } from './task-store'
 
@@ -74,8 +74,9 @@ async function processTask(taskId: string): Promise<void> {
 
     await taskStore.update(taskId, patch)
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    console.error(`[worker] task ${taskId} failed:`, msg)
+    console.error(`[worker] task ${taskId} failed:`, e)
+    // 只把已整理过的 ffmpeg 错误给用户；其他异常（可能带服务器路径）只写日志。
+    const msg = e instanceof FfmpegError ? e.message : 'internal_error: 处理失败，请稍后重试'
     await taskStore.update(taskId, { status: 'failed', error: msg })
   }
 }

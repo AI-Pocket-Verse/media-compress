@@ -3,7 +3,7 @@ import path from 'node:path'
 import { env } from '../env'
 import { probeFile } from '../utils/probe'
 
-import { runFfmpeg } from './compressor'
+import { removePartialOutput, runFfmpeg } from './compressor'
 
 export interface Region {
   x: number
@@ -69,6 +69,11 @@ export async function removeWatermark(
     : regions
 
   const args = buildDelogoCommand(inputPath, outPath, safeRegions)
-  await runFfmpeg(args, env.FFMPEG_TIMEOUT_MS)
+  try {
+    await runFfmpeg(args, env.FFMPEG_TIMEOUT_MS)
+  } catch (e) {
+    await removePartialOutput(outPath)
+    throw e
+  }
   return outPath
 }

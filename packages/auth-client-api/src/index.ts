@@ -61,6 +61,8 @@ export interface AuthPluginOptions {
    * `http://localhost:4020/api/whoami`. Omit for local single-user mode.
    */
   whoamiUrl?: string
+  /** whoami 请求超时（毫秒），超时按「登录服务暂不可用」处理。默认 5000。 */
+  timeoutMs?: number
   /** Cookie name carrying the opaque session id. Defaults to `sso_session`. */
   cookieName?: string
   /**
@@ -88,7 +90,9 @@ function parseCookies(header: string | undefined): Record<string, string> {
     if (eq < 0) continue
     const k = piece.slice(0, eq).trim()
     const v = piece.slice(eq + 1).trim()
-    if (k) out[k] = decodeURIComponent(v)
+    if (!k) continue
+    // 畸形百分号编码（如 a=%）保留原值，不能让同域任一坏 cookie 拖垮整站请求。
+    try { out[k] = decodeURIComponent(v) } catch { out[k] = v }
   }
   return out
 }
@@ -98,6 +102,7 @@ const plugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) => {
   const ttl = opts.cacheTtlMs ?? 5_000
   const max = opts.cacheMax ?? 5000
   const fetchFn = opts.fetchImpl ?? fetch
+  const timeoutMs = opts.timeoutMs ?? 5_000
   const cache = new Map<string, CacheEntry>()
 
   const verify = async (whoamiUrl: string, sessionId: string): Promise<{ user: User; session: Session } | null> => {
@@ -129,6 +134,7 @@ const plugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) => {
       res = await fetchFn(whoamiUrl, {
         method: 'GET',
         headers: { Cookie: `${cookieName}=${encodeURIComponent(sessionId)}` },
+        signal: AbortSignal.timeout(timeoutMs),
       })
     } catch (e) {
       // Network blip / auth service unreachable → transient, retryable.
@@ -143,7 +149,13 @@ const plugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) => {
 
     let parsed: { user: User; session: Session } | null = null
     if (res.ok) {
-      const body = await res.json()
+      let body: unknown
+      try {
+        body = await res.json()
+      } catch (e) {
+        // 读响应体超时或中断：登录服务有问题，不是「未登录」。
+        throw new TransientAuthError('Auth service response unreadable', { cause: e })
+      }
       const out = WhoamiResponse.safeParse(body)
       if (out.success && out.data.authenticated) {
         parsed = { user: out.data.user, session: out.data.session }

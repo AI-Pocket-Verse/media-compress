@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { FastifyPluginAsync } from 'fastify'
 
+import { getMediaType, isAllowedExtension, isOutputFormatCompatible } from '../config/file-types'
 import { FORMAT_REQUIRES, getFfmpegCapabilities } from '../config/ffmpeg-caps'
 import { env } from '../env'
 import { CompressOptions } from '../schemas/compress'
@@ -61,6 +62,19 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
     if (!result.success) {
       filePart.file.resume()
       return reply.code(400).send({ code: 'invalid_options', message: result.error.issues.map(i => i.message).join('; ') })
+    }
+
+    // 输出格式必须和上传文件的媒体类型匹配（扩展名不合法的交给后面的类型校验报错）。
+    const uploadName = filePart.filename || ''
+    if (isAllowedExtension(uploadName)) {
+      const mediaType = getMediaType(uploadName)
+      if (!isOutputFormatCompatible(mediaType, result.data.output_format)) {
+        filePart.file.resume()
+        return reply.code(400).send({
+          code: 'unsupported_format',
+          message: `${mediaType === 'image' ? '图片' : '视频'}不能输出为 '${result.data.output_format}' 格式`,
+        })
+      }
     }
 
     try {

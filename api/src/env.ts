@@ -5,7 +5,11 @@ import { z } from 'zod'
 const Env = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(4010),
-  HOST: z.string().default('0.0.0.0'),
+  // 本地模式不鉴权，默认只监听本机；要对外提供服务请放在反向代理后并配置 WHOAMI_URL。
+  HOST: z.string().default('127.0.0.1'),
+  // Fastify trustProxy：信任哪些反代地址的 X-Forwarded-For（限流按 req.ip 分桶）。
+  // 默认只信任本机回环（nginx 同机反代）；不要设成 true，那样任何客户端都能伪造来源 IP。
+  TRUST_PROXY: z.string().default('loopback'),
 
   // SQLite via Prisma. No default: a missing value means the env file wasn't
   // loaded (start via `pnpm dev` / `pnpm start`); fail fast instead of writing

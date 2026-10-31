@@ -10,7 +10,7 @@ export function Nav() {
         <span aria-hidden="true" className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center logo-anim">
           <Minimize2 className="w-4 h-4 text-white" />
         </span>
-        <span className="font-extrabold text-gray-900 text-base">Jeman 媒体工具箱</span>
+        <span className="font-extrabold text-gray-900 text-base">媒体工具箱</span>
       </NavLink>
       <div className="flex items-center gap-1 text-sm">
         <NavLink to="/" end className={navCls}>
