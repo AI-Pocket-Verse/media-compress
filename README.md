@@ -11,7 +11,7 @@
 
 ## 快速开始
 
-需要 Node.js ≥ 20.6、pnpm 9 和 FFmpeg（`ffmpeg` / `ffprobe` 在 PATH 中，或在 `api/.env.dev` 里写绝对路径，见下文「FFmpeg 要求」）。
+需要 Node.js ≥ 20.19（推荐 22 或 24）、pnpm 9 和 FFmpeg（`ffmpeg` / `ffprobe` 在 PATH 中，或在 `api/.env.dev` 里写绝对路径，见下文「FFmpeg 要求」）。
 
 ```bash
 pnpm install     # 安装依赖并生成 Prisma client
