@@ -136,16 +136,56 @@ The api loads its configuration with Node's native `--env-file`: `pnpm dev` read
 
 ## Optional: multi-user login
 
-When not set, it runs in local single-user mode. If several people need to use it and their files must be isolated per person, you can connect the companion Feishu (Lark) SSO service feishu-sso (coming soon as open source), or integrate your own login service, as long as it satisfies the whoami contract below:
+When not set, it runs in local single-user mode. If several people need to use it and their files must be isolated per person, connect a login service. The project is written against the API of the companion Feishu (Lark) SSO service feishu-sso (coming soon as open source); you can also implement a compatible login service yourself, following "Login service API" below.
 
-- The login session lives in an `sso_session` cookie on the same domain;
-- The api sends this cookie to `WHOAMI_URL`: if logged in, it returns 200 and `{"authenticated": true, "user": {...}, "session": {...}}`; if not logged in, it returns `{"authenticated": false}` or a 4xx. A 5xx or a timeout is treated as "login service temporarily unavailable": it returns 503 `auth_unavailable` and does not log the user out. For the field definitions, see [`packages/auth-core/src/index.ts`](packages/auth-core/src/index.ts).
+### Setup
 
-Setup steps (configure both sides together; if only one side is configured, the frontend and backend will disagree about who the current user is):
+Configure both sides together; if only one side is configured, the frontend and backend will disagree about who the current user is.
 
 1. Deploy the login service and have the reverse proxy forward `/auth/*` on the same domain to it (the login cookie depends on same-origin).
 2. Set `WHOAMI_URL` for the api, pointing to the login service's whoami endpoint, for example `http://127.0.0.1:4020/api/whoami`.
 3. Set `VITE_SSO_BASE=/auth` when building web (it can go in `web/.env.local`; with Docker, use the build argument `docker compose build --build-arg VITE_SSO_BASE=/auth`).
+
+### Login service API
+
+Paths below are relative to the login service root; with the setup above, the browser requests addresses like `/auth/api/whoami`.
+
+| Endpoint | Called by | Description |
+| --- | --- | --- |
+| `GET /api/whoami` | Browser (with cookie), api | Returns the current login state; format below |
+| `GET /login?return_to=<url>` | Browser redirect | Login page. Signed-out users clicking "Start compressing" or "Submit" are sent here, then back to `return_to` after signing in |
+| `GET /api/feishu/authorize?return_to=<url>&remember_me=1` | Browser redirect | Starts authorization directly. Signed-out users clicking "Sign in" (top right) or the upload area are sent here, then back to `return_to` |
+| `POST /api/logout` | Browser (with cookie) | Signs out |
+
+`/api/feishu/authorize` keeps the path name used by feishu-sso. If your service uses different paths, override the defaults by passing `whoamiPath`, `loginPath`, `directLoginPath` or `logoutPath` in the `AuthProvider` config in `web/src/main.tsx`.
+
+**Session and whoami**
+
+- The session lives in an `sso_session` cookie on the same domain; the browser sends it automatically with the requests above.
+- The api forwards only the `sso_session` cookie to `WHOAMI_URL` (header `Cookie: sso_session=<value>`) with a 5-second timeout; signed-in results are cached per session for 5 seconds.
+- When signed in, return 200:
+
+  ```json
+  {
+    "authenticated": true,
+    "user": { "id": "u_123", "open_id": "ou_123", "name": "Alice", "last_login_at": "2026-01-01T00:00:00Z" },
+    "session": { "id": "s_123", "user_id": "u_123", "remember_me": true, "expires_at": "2026-02-01T00:00:00Z", "last_seen_at": "2026-01-01T00:00:00Z" }
+  }
+  ```
+
+  When signed out, also return 200 with `{"authenticated": false}`. The api treats a 4xx as signed out too, but the browser only trusts 200 and will not sign out on a 4xx.
+
+**Field requirements**
+
+- Every field in the example is required; times are ISO 8601. A response with missing or mistyped fields is treated as signed out.
+- `user.id` decides who owns each file and must never change; if you have no `open_id` concept, use the same value as `id`.
+- Optional fields: `avatar_url` (shown as the avatar when set), `email`, `mobile`, `union_id`, `en_name`, `avatar_thumb`, `tenant_key`. See [`packages/auth-core/src/index.ts`](packages/auth-core/src/index.ts) for the full definition.
+- Once `session.expires_at` has passed, the api asks whoami again even within the cache window.
+
+**Failure handling**
+
+- When the api's whoami request returns 5xx, times out or cannot connect, it is treated as "login service temporarily unavailable": the api returns 503 `auth_unavailable` and does not sign the user out.
+- When the browser's whoami request returns anything other than 200, the current login state is kept; it retries when the tab becomes visible again.
 
 ## Deployment
 

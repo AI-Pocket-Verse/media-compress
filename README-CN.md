@@ -136,16 +136,56 @@ api 用 Node 原生的 `--env-file` 加载配置：`pnpm dev` 读 `api/.env.dev`
 
 ## 可选：多用户登录
 
-不设置时为本地单用户模式。需要多人使用、按人隔离文件时，可以接入配套的飞书统一登录服务 feishu-sso（即将开源），也可以对接你自己的登录服务，只要它满足下面的 whoami 约定：
+不设置时为本地单用户模式。需要多人使用、按人隔离文件时，可以接入登录服务。项目按配套的飞书统一登录服务 feishu-sso（即将开源）的接口编写；也可以自己实现一个兼容的登录服务，接口见下方「登录服务接口约定」。
 
-- 登录态放在同域名的 `sso_session` cookie 里；
-- api 带着这个 cookie 请求 `WHOAMI_URL`：已登录返回 200 和 `{"authenticated": true, "user": {...}, "session": {...}}`，未登录返回 `{"authenticated": false}` 或 4xx；5xx 和超时按「登录服务暂不可用」处理，返回 503 `auth_unavailable`，不会把用户登出。字段定义见 [`packages/auth-core/src/index.ts`](packages/auth-core/src/index.ts)。
+### 接入步骤
 
-接入步骤（两端需同时配置，只配一端时前后端对「当前用户」的判断会不一致）：
+两端需同时配置，只配一端时前后端对「当前用户」的判断会不一致。
 
 1. 部署登录服务，并让反向代理把同一域名下的 `/auth/*` 转发给它（登录 cookie 依赖同源）。
 2. api 设置 `WHOAMI_URL`，指向登录服务的 whoami 接口，例如 `http://127.0.0.1:4020/api/whoami`。
 3. web 构建时设置 `VITE_SSO_BASE=/auth`（可写在 `web/.env.local`；Docker 用构建参数 `docker compose build --build-arg VITE_SSO_BASE=/auth`）。
+
+### 登录服务接口约定
+
+下表路径相对登录服务根路径；按上面的配置，浏览器访问的是 `/auth/api/whoami` 这样的地址。
+
+| 接口 | 调用方 | 说明 |
+| --- | --- | --- |
+| `GET /api/whoami` | 浏览器（带 cookie）、api | 返回当前登录状态，格式见下 |
+| `GET /login?return_to=<url>` | 浏览器跳转 | 登录页。未登录时点「开始压缩」「提交任务」会跳到这里，登录完成后跳回 `return_to` |
+| `GET /api/feishu/authorize?return_to=<url>&remember_me=1` | 浏览器跳转 | 直接发起授权。未登录时点右上角「登录」或上传区域会跳到这里，完成后跳回 `return_to` |
+| `POST /api/logout` | 浏览器（带 cookie） | 退出登录 |
+
+`/api/feishu/authorize` 沿用了 feishu-sso 的路径名。自建服务路径不同时，在 `web/src/main.tsx` 的 `AuthProvider` 配置里传 `whoamiPath`、`loginPath`、`directLoginPath`、`logoutPath` 覆盖默认值。
+
+**登录态与 whoami**
+
+- 登录态放在同域名的 `sso_session` cookie 里，浏览器请求上述接口时自动带上。
+- api 只把 `sso_session` 这一个 cookie 转发给 `WHOAMI_URL`（请求头 `Cookie: sso_session=<值>`），超时 5 秒；已登录的结果按会话缓存 5 秒。
+- 已登录时返回 200：
+
+  ```json
+  {
+    "authenticated": true,
+    "user": { "id": "u_123", "open_id": "ou_123", "name": "Alice", "last_login_at": "2026-01-01T00:00:00Z" },
+    "session": { "id": "s_123", "user_id": "u_123", "remember_me": true, "expires_at": "2026-02-01T00:00:00Z", "last_seen_at": "2026-01-01T00:00:00Z" }
+  }
+  ```
+
+  未登录时也返回 200，内容为 `{"authenticated": false}`。api 会把 4xx 当作未登录，但浏览器端只认 200，收到 4xx 时不会退出登录。
+
+**字段要求**
+
+- 示例里的字段都必填，时间用 ISO 8601。缺字段或类型不对时，整条响应按「未登录」处理。
+- `user.id` 是文件归属的依据，必须稳定不变；没有 `open_id` 概念时，填与 `id` 相同的值即可。
+- 可选字段：`avatar_url`（有值时显示为头像）、`email`、`mobile`、`union_id`、`en_name`、`avatar_thumb`、`tenant_key`。完整定义见 [`packages/auth-core/src/index.ts`](packages/auth-core/src/index.ts)。
+- `session.expires_at` 过期后，即使还在缓存期内，api 也会重新请求 whoami 校验。
+
+**异常处理**
+
+- api 请求 whoami 返回 5xx、超时或连不上时，按「登录服务暂不可用」处理，返回 503 `auth_unavailable`，不会把用户登出。
+- 浏览器请求 whoami 返回非 200 时，保持当前登录状态不变；标签页重新显示时会自动重试。
 
 ## 部署
 
