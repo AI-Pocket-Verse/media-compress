@@ -8,7 +8,6 @@ export default defineConfig({
     port: 5010,
     proxy: {
       '/api': { target: 'http://localhost:4010', changeOrigin: true },
-      '/ws': { target: 'ws://localhost:4010', ws: true },
     },
   },
   resolve: {

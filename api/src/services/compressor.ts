@@ -5,7 +5,8 @@ import path from 'node:path'
 import { getMediaType, type MediaType } from '../config/file-types'
 import { env } from '../env'
 
-const QUALITY_MAP: Record<string, number> = { smallest: 50, balanced: 75, highest: 90 }
+// mobile（APP）图片画质 80，与其他预设走同一套按输出格式换算的参数（jpg 的 -q:v、webp 的 -quality 等）。
+const QUALITY_MAP: Record<string, number> = { smallest: 50, balanced: 75, highest: 90, mobile: 80 }
 const CRF_MAP: Record<string, number> = { smallest: 35, balanced: 23, highest: 18 }
 
 // WebM only accepts VP8/VP9/AV1 video and Vorbis/Opus audio; every other
@@ -108,26 +109,20 @@ export function buildCompressCommand(
   // `scale` above, so "keep original" no longer auto-downscales. ───
   const webm = isWebm(output)
 
-  if (mode === 'simple' && preset === 'mobile') {
-    if (mediaType === 'video') {
-      const vf = [scale ?? EVEN_SCALE, 'fps=30'].join(',')
-      const video = webm
-        ? ['-c:v', 'libvpx-vp9', '-crf', '23', '-b:v', '0', ...VP9_FAST]
-        : ['-c:v', 'libx264', '-preset', 'medium', '-crf', '23']
-      return [
-        '-y', '-i', input,
-        '-vf', vf,
-        ...video,
-        ...PIX_FMT,
-        ...audioFlags(resolveAudio(options, preset), webm),
-        ...(webm ? [] : ['-movflags', '+faststart']),
-        output,
-      ]
-    }
-    const imgCmd: string[] = ['-y', '-i', input]
-    if (scale) imgCmd.push('-vf', scale)
-    imgCmd.push('-quality', '80', output)
-    return imgCmd
+  if (mode === 'simple' && preset === 'mobile' && mediaType === 'video') {
+    const vf = [scale ?? EVEN_SCALE, 'fps=30'].join(',')
+    const video = webm
+      ? ['-c:v', 'libvpx-vp9', '-crf', '23', '-b:v', '0', ...VP9_FAST]
+      : ['-c:v', 'libx264', '-preset', 'medium', '-crf', '23']
+    return [
+      '-y', '-i', input,
+      '-vf', vf,
+      ...video,
+      ...PIX_FMT,
+      ...audioFlags(resolveAudio(options, preset), webm),
+      ...(webm ? [] : ['-movflags', '+faststart']),
+      output,
+    ]
   }
 
   const cmd: string[] = ['-y', '-i', input]

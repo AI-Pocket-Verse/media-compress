@@ -12,7 +12,7 @@
  * source of truth.
  */
 import fp from 'fastify-plugin'
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
 import {
   DEFAULT_SESSION_COOKIE_NAME,
@@ -36,7 +36,7 @@ declare module 'fastify' {
     authTransient?: boolean
   }
   interface FastifyInstance {
-    requireAuth: () => (req: FastifyRequest) => Promise<void>
+    requireAuth: () => (req: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | void>
     optionalAuth: () => (req: FastifyRequest) => Promise<void>
   }
 }
@@ -209,19 +209,16 @@ const plugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) => {
     }
   })
 
-  app.decorate('requireAuth', () => async (req: FastifyRequest) => {
-    if (!req.user) {
-      const err = new Error('Unauthorized') as Error & { statusCode?: number; code?: string }
-      if (req.authTransient) {
-        err.message = '登录服务暂时不可用,请稍后重试'
-        err.statusCode = 503
-        err.code = 'auth_unavailable'
-      } else {
-        err.statusCode = 401
-        err.code = 'unauthenticated'
-      }
-      throw err
+  app.decorate('requireAuth', () => async (req: FastifyRequest, reply: FastifyReply) => {
+    if (req.user) return
+    if (req.authTransient) {
+      // 直接回复：抛出的 5xx 会被共享错误处理器统一改写成 internal_error，前端就分不出「登录服务暂不可用」。
+      return reply.code(503).send({ code: 'auth_unavailable', message: '登录服务暂时不可用，请稍后重试' })
     }
+    const err = new Error('Unauthorized') as Error & { statusCode?: number; code?: string }
+    err.statusCode = 401
+    err.code = 'unauthenticated'
+    throw err
   })
 
   app.decorate('optionalAuth', () => async () => {

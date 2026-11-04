@@ -4,6 +4,7 @@ import path from 'node:path'
 import archiver from 'archiver'
 import type { FastifyPluginAsync } from 'fastify'
 
+import { mimeForFilename } from '../config/file-types'
 import { env } from '../env'
 import { taskStore } from '../services/task-store'
 import { generateThumbnail, thumbPathFor } from '../services/thumbnail'
@@ -102,7 +103,8 @@ export const downloadRoutes: FastifyPluginAsync = async (app) => {
       }
       const filePath = path.resolve(env.BASE_DIR, task.input.path)
       if (!existsSync(filePath)) return reply.code(404).send({ code: 'not_found', message: 'input file missing' })
-      return reply.type(task.input.mime || 'application/octet-stream').send(createReadStream(filePath))
+      // 类型按扩展名重新决定：旧记录里的 mime 可能来自客户端声明。
+      return reply.type(mimeForFilename(task.input.filename)).send(createReadStream(filePath))
     },
   )
 

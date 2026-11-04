@@ -49,6 +49,24 @@ describe('auth-client-api', () => {
     expect(res.statusCode).toBe(503)
   })
 
+  it('登录服务不可用的 503 不经错误处理器，错误码不会被统一的 5xx 文案吞掉', async () => {
+    const fetchImpl = (async () => {
+      throw new Error('ECONNREFUSED')
+    }) as typeof fetch
+    const app = Fastify()
+    // 与 api-kit 相同：抛出的 5xx 一律改写成 internal_error。
+    app.setErrorHandler((err, _req, reply) => {
+      const status = (err as { statusCode?: number }).statusCode ?? 500
+      if (status >= 500) return reply.status(status).send({ code: 'internal_error' })
+      return reply.status(status).send({ code: (err as { code?: string }).code })
+    })
+    await app.register(authPlugin, { whoamiUrl: 'http://sso.invalid/api/whoami', fetchImpl })
+    app.get('/me', { preHandler: app.requireAuth() }, async () => ({ ok: true }))
+    const res = await app.inject({ url: '/me', headers: { cookie: 'sso_session=abc' } })
+    expect(res.statusCode).toBe(503)
+    expect(res.json().code).toBe('auth_unavailable')
+  })
+
   it('Cookie 里有非法百分号编码（a=%）不会让请求 500，会话 cookie 仍可识别', async () => {
     const user = { ...LOCAL_USER, id: 'u1', open_id: 'ou_1', name: 'Alice' }
     const session = { id: 's1', user_id: 'u1', remember_me: false, expires_at: '2999-01-01T00:00:00Z', last_seen_at: '2026-01-01T00:00:00Z' }

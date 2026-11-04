@@ -1,0 +1,19 @@
+services:
+  media-compress:
+    build: .
+    image: media-compress:local
+    restart: unless-stopped
+    ports:
+      # 默认只绑本机。要让局域网其他设备访问，改成 "8080:4010"，并在下面 ALLOWED_HOSTS 填本机的局域网 IP 或域名。
+      - "127.0.0.1:8080:4010"
+    environment:
+      # 本地模式下额外允许的访问主机名（逗号分隔，不带端口）
+      ALLOWED_HOSTS: ""
+      # 可选，其余配置项见 api/.env.example
+      # WORKER_COUNT: "1"
+      # MAX_UPLOAD_BYTES: "2147483648"
+    volumes:
+      - media-compress-data:/data
+
+volumes:
+  media-compress-data:

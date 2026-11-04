@@ -23,6 +23,21 @@ export const VIDEO_OUTPUT_FORMATS = new Set(['mp4', 'webm', 'mov', 'mkv', 'avi',
 
 export type MediaType = 'image' | 'video'
 
+// 上传文件的 MIME 按扩展名在服务端决定，不信任客户端声明的 Content-Type：
+// /api/input 原样回传原文件，客户端可控的类型（如 text/html）会让浏览器把它当网页执行。
+const MIME_BY_EXT: Record<string, string> = {
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
+  '.gif': 'image/gif', '.bmp': 'image/bmp', '.tiff': 'image/tiff', '.tif': 'image/tiff',
+  '.heic': 'image/heic', '.heif': 'image/heif', '.avif': 'image/avif', '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska',
+  '.webm': 'video/webm', '.flv': 'video/x-flv', '.wmv': 'video/x-ms-wmv', '.ts': 'video/mp2t',
+  '.m4v': 'video/x-m4v', '.3gp': 'video/3gpp', '.ogv': 'video/ogg', '.mts': 'video/mp2t', '.m2ts': 'video/mp2t',
+}
+
+export function mimeForFilename(filename: string): string {
+  return MIME_BY_EXT[path.extname(filename).toLowerCase()] ?? 'application/octet-stream'
+}
+
 export function getMediaType(filename: string): MediaType {
   const ext = path.extname(filename).toLowerCase()
   return IMAGE_EXTENSIONS.has(ext) ? 'image' : 'video'

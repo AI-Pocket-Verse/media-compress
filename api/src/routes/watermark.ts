@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { FastifyPluginAsync } from 'fastify'
 
+import { mimeForFilename } from '../config/file-types'
 import { env } from '../env'
 import { Region } from '../schemas/compress'
 import { runCleanup } from '../services/cleaner'
@@ -11,6 +12,8 @@ import { submitTask } from '../services/worker'
 import { probeFile } from '../utils/probe'
 
 import { UploadError, requireFfmpeg, streamSaveValidated } from './_helpers'
+
+const MAX_REGIONS = 50
 
 export const watermarkRoutes: FastifyPluginAsync = async (app) => {
   app.post('/api/watermark', { preHandler: [app.requireAuth(), requireFfmpeg] }, async (req, reply) => {
@@ -46,6 +49,11 @@ export const watermarkRoutes: FastifyPluginAsync = async (app) => {
       filePart.file.resume()
       return reply.code(400).send({ code: 'invalid_regions', message: 'at least one region required' })
     }
+    // 每个区域对应一个 delogo 滤镜；不设上限时构造的请求能让 ffmpeg 参数超长或长时间占用 worker。
+    if (rawRegions.length > MAX_REGIONS) {
+      filePart.file.resume()
+      return reply.code(400).send({ code: 'invalid_regions', message: `最多 ${MAX_REGIONS} 个水印区域` })
+    }
 
     const parsed = Region.array().safeParse(rawRegions)
     if (!parsed.success) {
@@ -74,7 +82,7 @@ export const watermarkRoutes: FastifyPluginAsync = async (app) => {
         filename: saved.safeName,
         path: saved.relPath,
         size: saved.size,
-        mime: filePart.mimetype || 'application/octet-stream',
+        mime: mimeForFilename(saved.safeName),
         metadata: meta,
       },
       options: { regions: parsed.data },

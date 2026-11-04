@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
 import rateLimit from '@fastify/rate-limit'
+import fastifyStatic from '@fastify/static'
 import Fastify from 'fastify'
 
 import apiKit from '@media-compress/api-kit'
@@ -18,8 +19,12 @@ import { tasksRoutes } from './routes/tasks'
 import { uploadRoutes } from './routes/upload'
 import { watermarkRoutes } from './routes/watermark'
 import { initWorker, recoverPendingOnStartup, shutdownWorker } from './services/worker'
+import { hostGuard, parseAllowedHosts } from './utils/host-guard'
 
 const app = Fastify({ logger: false, bodyLimit: env.MAX_UPLOAD_BYTES, trustProxy: env.TRUST_PROXY })
+
+// 本地模式没有登录，拒绝非本机 Host / 跨站 Origin 的请求（防 DNS 重绑定与跨站上传）。
+if (!env.WHOAMI_URL) app.addHook('onRequest', hostGuard(parseAllowedHosts(env.ALLOWED_HOSTS)))
 
 // Ensure storage roots exist
 await Promise.all(
@@ -38,6 +43,10 @@ await app.register(cors, {
   credentials: true,
 })
 await app.register(rateLimit, { max: 200, timeWindow: '1 minute' })
+// 禁止浏览器嗅探响应类型：回传的用户文件只按声明的媒体类型处理，不会被当成 HTML / 脚本执行。
+app.addHook('onSend', async (_req, reply) => {
+  reply.header('X-Content-Type-Options', 'nosniff')
+})
 await app.register(multipart, {
   limits: { fileSize: env.MAX_UPLOAD_BYTES },
 })
@@ -49,6 +58,17 @@ await app.register(watermarkRoutes)
 await app.register(tasksRoutes)
 await app.register(downloadRoutes)
 await app.register(filesRoutes)
+
+// 单端口模式（Docker）：api 顺带托管前端，未知路径回退 index.html 交给前端路由。
+if (env.WEB_DIST_DIR) {
+  await app.register(fastifyStatic, { root: resolve(env.WEB_DIST_DIR) })
+  app.setNotFoundHandler((req, reply) => {
+    if (req.method !== 'GET' || req.url.startsWith('/api/')) {
+      return reply.code(404).send({ code: 'not_found', message: 'route not found' })
+    }
+    return reply.sendFile('index.html')
+  })
+}
 
 // Worker lifecycle
 initWorker()

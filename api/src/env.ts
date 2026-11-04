@@ -2,12 +2,15 @@ import path from 'node:path'
 
 import { z } from 'zod'
 
-// TRUST_PROXY：true / false、跳数，或 proxy-addr 支持的 loopback / IP / 网段列表（逗号分隔）。
-// 留空按默认 loopback。原样把 "true" 或 "1" 交给 Fastify 会被当成 IP 地址而启动失败或不生效。
-export function parseTrustProxy(v: string): boolean | number | string {
+// TRUST_PROXY：true / false，或 proxy-addr 支持的 loopback / IP / 网段列表（逗号分隔）。
+// 留空按默认 loopback。原样把 "true" 交给 Fastify 会被当成 IP 地址而启动失败。
+// 不支持跳数：Fastify 5.12 起跳数无法校验直连对端，会静默不信任任何代理，这里直接报错。
+export function parseTrustProxy(v: string): boolean | string {
   const s = v.trim() || 'loopback'
   if (/^(true|false)$/i.test(s)) return s.toLowerCase() === 'true'
-  if (/^\d+$/.test(s)) return Number(s)
+  if (/^\d+$/.test(s)) {
+    throw new Error(`TRUST_PROXY=${s}: hop count is not supported, use the proxy IP / CIDR (e.g. loopback, 10.0.0.0/8)`)
+  }
   return s
 }
 
@@ -25,10 +28,8 @@ const Env = z.object({
   // to a phantom DB. Prod sets an absolute `file:` path.
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required — start via `pnpm dev` (.env.dev) or `pnpm start` (.env.prod)'),
 
-  // All storage paths derive from BASE_DIR unless overridden individually.
+  // uploads/ 与 outputs/ 固定在 BASE_DIR 下：任务记录里存的是相对 BASE_DIR 的路径，不能单独改位置。
   BASE_DIR: z.string().default('./data'),
-  UPLOAD_DIR: z.string().optional(),
-  OUTPUT_DIR: z.string().optional(),
   THUMBNAIL_DIR: z.string().optional(),
   CLEANER_LOG: z.string().optional(),
 
@@ -51,14 +52,18 @@ const Env = z.object({
   WHOAMI_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   // Same-origin reverse proxy → leave empty; for direct cross-origin browser access set explicit allowlist.
   CORS_ORIGINS: z.string().default(''),
+  // 本地模式下额外允许的访问主机名（逗号分隔，不带端口），默认只允许本机；`*` 关闭校验。见 utils/host-guard.ts。
+  ALLOWED_HOSTS: z.string().default(''),
+  // 设置后由 api 直接托管前端构建产物（web/dist），单端口即可使用；Docker 镜像用它。nginx 部署留空。
+  WEB_DIST_DIR: z.string().optional(),
 })
 
 const raw = Env.parse(process.env)
 
 export const env = {
   ...raw,
-  UPLOAD_DIR: raw.UPLOAD_DIR ?? path.join(raw.BASE_DIR, 'uploads'),
-  OUTPUT_DIR: raw.OUTPUT_DIR ?? path.join(raw.BASE_DIR, 'outputs'),
+  UPLOAD_DIR: path.join(raw.BASE_DIR, 'uploads'),
+  OUTPUT_DIR: path.join(raw.BASE_DIR, 'outputs'),
   THUMBNAIL_DIR: raw.THUMBNAIL_DIR ?? path.join(raw.BASE_DIR, 'thumbnails'),
   CLEANER_LOG: raw.CLEANER_LOG ?? path.join(raw.BASE_DIR, 'cleaner.log'),
 }

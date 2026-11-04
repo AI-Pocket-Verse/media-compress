@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { FastifyPluginAsync } from 'fastify'
 
-import { getMediaType, isAllowedExtension, isOutputFormatCompatible } from '../config/file-types'
+import { getMediaType, isAllowedExtension, isOutputFormatCompatible, mimeForFilename } from '../config/file-types'
 import { FORMAT_REQUIRES, getFfmpegCapabilities } from '../config/ffmpeg-caps'
 import { env } from '../env'
 import { CompressOptions } from '../schemas/compress'
@@ -106,7 +106,7 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
         filename: saved.safeName,
         path: saved.relPath,
         size: saved.size,
-        mime: filePart.mimetype || 'application/octet-stream',
+        mime: mimeForFilename(saved.safeName),
         metadata: meta,
       },
       options: result.data as unknown as Record<string, unknown>,

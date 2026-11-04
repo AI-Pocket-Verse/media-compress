@@ -101,11 +101,15 @@ describe('buildCompressCommand resolution', () => {
     expect(args).not.toContain('-preset')
     expect(args).not.toContain('+faststart')
   })
-  it('mobile + keep-original (image): no scale, quality 80', () => {
-    const args = buildCompressCommand('in.png', 'out.png', { mode: 'simple', quality_preset: 'mobile' }, 'image')
+  it('mobile + webp (image): no scale, quality 80', () => {
+    const args = buildCompressCommand('in.png', 'out.webp', { mode: 'simple', quality_preset: 'mobile' }, 'image')
     expect(args).not.toContain('-vf')
-    expect(args).toContain('-quality')
-    expect(args).toContain('80')
+    expect(args).toEqual(expect.arrayContaining(['-quality', '80']))
+  })
+  // 服务器缺 libwebp 时 APP 退回 jpg：画质 80 要换算成 jpg 的 -q:v，动图只取首帧。
+  it('mobile + jpg (image): q:v 按画质 80 换算，动图只取首帧', () => {
+    const args = buildCompressCommand('in.gif', 'out.jpg', { mode: 'simple', quality_preset: 'mobile' }, 'image')
+    expect(args).toEqual(expect.arrayContaining(['-frames:v', '1', '-q:v', '8']))
   })
 })
 

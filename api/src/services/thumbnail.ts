@@ -45,7 +45,8 @@ export async function generateThumbnail(inputPath: string, taskId: string): Prom
     const retry = await runArgs([...base, '-frames:v', '1', '-vf', scale, '-q:v', '5', out])
     return retry ? out : null
   }
-  const ok = await runArgs([...base, '-vf', scale, '-q:v', '5', out])
+  // 动图（多帧 GIF）只取首帧，否则 ffmpeg 会因要写多帧到同一个文件而失败。
+  const ok = await runArgs([...base, '-frames:v', '1', '-vf', scale, '-q:v', '5', out])
   return ok ? out : null
 }
 

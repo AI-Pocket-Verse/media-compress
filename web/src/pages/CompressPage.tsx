@@ -77,6 +77,10 @@ export function CompressPage() {
     ffmpeg_ok: true, webp: true, libx264: true, libvpx: true, libvpx_vp9: true,
     libaom_av1: false, mjpeg: true, png: true, gif: true,
   })
+  // APP 预设的输出格式：图片优先 webp、视频 mp4；服务器 FFmpeg 缺对应编码器时退回 jpg / 原格式，
+  // 否则默认设置下上传就会被拒（如 macOS Homebrew 的 ffmpeg 不带 libwebp）。
+  const appFormat = (t: MediaType | null) =>
+    t === 'image' ? (caps.webp ? 'webp' : 'jpg') : caps.libx264 ? 'mp4' : ''
 
   const [previewFile, setPreviewFile] = useState<File | null>(null)
   const [compareTask, setCompareTask] = useState<Task | null>(null)
@@ -134,7 +138,7 @@ export function CompressPage() {
 
     if (preset === 'mobile' && next.length) {
       const t = detectMediaType(next[next.length - 1]!.file)
-      setOutputFormat(t === 'image' ? 'webp' : 'mp4')
+      setOutputFormat(appFormat(t))
     }
   }
 
@@ -318,7 +322,7 @@ export function CompressPage() {
                   key={k}
                   onClick={() => {
                     setPreset(k)
-                    if (k === 'mobile' && mediaType) setOutputFormat(mediaType === 'image' ? 'webp' : 'mp4')
+                    if (k === 'mobile' && mediaType) setOutputFormat(appFormat(mediaType))
                   }}
                   className={`px-3 py-1.5 text-xs rounded-xl font-semibold ${preset === k ? 'bg-indigo-500 text-white' : 'bg-white border border-gray-200 text-gray-400'}`}
                 >
