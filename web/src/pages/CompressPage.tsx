@@ -10,6 +10,7 @@ import { FfmpegBanner } from '../components/FfmpegBanner'
 import { LoadingOverlay } from '../components/LoadingOverlay'
 import { MediaPreviewModal } from '../components/MediaPreviewModal'
 import { StatusPills, TaskRow } from '../components/TaskRow'
+import { useI18n } from '../i18n'
 import { api } from '../lib/api'
 import { formatBytes, formatDuration } from '../lib/format'
 import { detectMediaType, IMG_EXT, VID_EXT } from '../lib/media'
@@ -34,6 +35,7 @@ export function CompressPage() {
   useTasksPolling()
   const allTasks = useTasksStore((s) => s.tasks)
   const dialog = useDialog()
+  const { t, errorText } = useI18n()
   const { user, loginDirect } = useAuth()
 
   const tasks = useMemo(() => allTasks.filter((t) => t.type === 'compress'), [allTasks])
@@ -103,23 +105,23 @@ export function CompressPage() {
     const accepted: PendingItem[] = []
     const rejected: string[] = []
     let lock: MediaType | null = pending.length > 0 ? detectMediaType(pending[0]!.file) : null
-    const label = (t: MediaType) => (t === 'image' ? '图片' : '视频')
+    const label = (mt: MediaType) => (mt === 'image' ? t('compress.typeImage') : t('compress.typeVideo'))
 
     for (const f of files) {
-      const t = detectMediaType(f)
-      if (!t) { rejected.push(`${f.name} （不支持的格式）`); continue }
-      if (!lock) lock = t
-      if (t !== lock) { rejected.push(`${f.name} (与当前${label(lock)}批次不能混合)`); continue }
+      const mt = detectMediaType(f)
+      if (!mt) { rejected.push(t('compress.rejectUnsupported', { name: f.name })); continue }
+      if (!lock) lock = mt
+      if (mt !== lock) { rejected.push(t('compress.rejectMixed', { name: f.name, type: label(lock) })); continue }
       const cap = maxPendingFor(lock)
-      if (pending.length + accepted.length >= cap) { rejected.push(`${f.name} (超过 ${cap} 个上限)`); continue }
+      if (pending.length + accepted.length >= cap) { rejected.push(t('compress.rejectOverLimit', { name: f.name, cap })); continue }
       accepted.push({ file: f })
     }
     if (rejected.length) {
       // A dropped folder can reject many files (over-limit / wrong type) — keep
       // the dialog readable instead of listing hundreds of lines.
       const shown = rejected.slice(0, 8)
-      const message = shown.join('\n') + (rejected.length > shown.length ? `\n…等共 ${rejected.length} 个文件已跳过` : '')
-      await dialog.alert({ title: '部分文件已跳过', message, kind: 'warning' })
+      const message = shown.join('\n') + (rejected.length > shown.length ? `\n${t('compress.skippedMore', { n: rejected.length })}` : '')
+      await dialog.alert({ title: t('compress.skippedTitle'), message, kind: 'warning' })
     }
 
     const next = [...pending, ...accepted]
@@ -137,8 +139,7 @@ export function CompressPage() {
     }
 
     if (preset === 'mobile' && next.length) {
-      const t = detectMediaType(next[next.length - 1]!.file)
-      setOutputFormat(appFormat(t))
+      setOutputFormat(appFormat(detectMediaType(next[next.length - 1]!.file)))
     }
   }
 
@@ -166,7 +167,7 @@ export function CompressPage() {
   const submit = async () => {
     if (!pending.length) return
     if (resolution === MANUAL && !RES_RE.test(`${customW}x${customH}`)) {
-      await dialog.alert({ message: '请输入完整的宽和高,如 1920 × 1080', kind: 'error' })
+      await dialog.alert({ message: t('compress.manualResInvalid'), kind: 'error' })
       return
     }
     const opts = getOptions()
@@ -182,7 +183,7 @@ export function CompressPage() {
           if (item.thumb) URL.revokeObjectURL(item.thumb)
         } catch (e) {
           setPending((cur) => [...cur, item])
-          await dialog.alert({ message: `上传失败 (${item.file.name}): ${(e as Error).message}`, kind: 'error' })
+          await dialog.alert({ message: t('compress.uploadFailed', { name: item.file.name, error: errorText(e) }), kind: 'error' })
         } finally {
           setSubmitInfo((cur) => (cur ? { ...cur, done: cur.done + 1 } : cur))
         }
@@ -226,8 +227,8 @@ export function CompressPage() {
           <div className="w-16 h-16 bg-white rounded-3xl shadow-sm border border-indigo-100 flex items-center justify-center mx-auto mb-4">
             <CloudUpload className="w-7 h-7 text-indigo-400" />
           </div>
-          <p className="text-gray-700 font-bold mb-1">点击选择文件，或拖拽文件 / 文件夹到此</p>
-          <p className="text-gray-400 text-sm">图片或视频 · 文件夹仅取其中图片 · 图片最多 {MAX_PENDING_IMAGE} 个、视频 {MAX_PENDING_VIDEO} 个</p>
+          <p className="text-gray-700 font-bold mb-1">{t('compress.dropTitle')}</p>
+          <p className="text-gray-400 text-sm">{t('compress.dropHint', { img: MAX_PENDING_IMAGE, vid: MAX_PENDING_VIDEO })}</p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
@@ -238,44 +239,44 @@ export function CompressPage() {
                 onClick={() => setMode(m)}
                 className={`px-4 py-1.5 rounded-lg font-semibold ${mode === m ? 'bg-indigo-500 text-white' : 'text-indigo-400 hover:text-indigo-500'}`}
               >
-                {m === 'simple' ? '简单模式' : '高级模式'}
+                {m === 'simple' ? t('compress.modeSimple') : t('compress.modeAdvanced')}
               </button>
             ))}
           </div>
           <div className="h-5 w-px bg-gray-200" />
-          <span className="text-xs text-gray-400">输出格式</span>
+          <span className="text-xs text-gray-400">{t('compress.outputFormat')}</span>
           <select
             value={outputFormat}
             onChange={(e) => setOutputFormat(e.target.value)}
             className="border border-gray-200 text-gray-500 text-xs rounded-xl px-3 py-1.5 bg-gray-50"
           >
-            <option value="">保持原格式</option>
-            <option value="webp" disabled={!caps.webp || (mediaType ?? 'image') !== 'image'}>WebP（图片）{!caps.webp && '（需带 libwebp 的 FFmpeg）'}</option>
+            <option value="">{t('compress.keepFormat')}</option>
+            <option value="webp" disabled={!caps.webp || (mediaType ?? 'image') !== 'image'}>{t('compress.webpOption')}{!caps.webp && t('compress.needLibwebp')}</option>
             <option value="png" disabled={(mediaType ?? 'image') !== 'image'}>PNG</option>
             <option value="jpg" disabled={(mediaType ?? 'image') !== 'image'}>JPG</option>
-            <option value="mp4" disabled={!caps.libx264 || (mediaType ?? 'video') !== 'video'}>MP4（视频）{!caps.libx264 && '（需带 libx264 的 FFmpeg）'}</option>
+            <option value="mp4" disabled={!caps.libx264 || (mediaType ?? 'video') !== 'video'}>{t('compress.mp4Option')}{!caps.libx264 && t('compress.needLibx264')}</option>
           </select>
-          <span className="text-xs text-gray-400">输出分辨率</span>
+          <span className="text-xs text-gray-400">{t('compress.resolution')}</span>
           <select
             value={resolution}
             onChange={(e) => setResolution(e.target.value)}
             className="border border-gray-200 text-gray-500 text-xs rounded-xl px-3 py-1.5 bg-gray-50"
           >
-            <option value="">保持原分辨率</option>
-            <optgroup label="横屏">
+            <option value="">{t('compress.keepResolution')}</option>
+            <optgroup label={t('compress.landscape')}>
               {LANDSCAPE.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </optgroup>
-            <optgroup label="竖屏">
+            <optgroup label={t('compress.portrait')}>
               {PORTRAIT.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </optgroup>
-            <option value={MANUAL}>手动输入…</option>
+            <option value={MANUAL}>{t('compress.manualInput')}</option>
           </select>
           {resolution === MANUAL && (
             <span className="inline-flex items-center gap-1.5 text-xs text-gray-400">
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="宽"
+                placeholder={t('compress.width')}
                 value={customW}
                 onChange={(e) => setCustomW(e.target.value.replace(/\D/g, '').slice(0, 5))}
                 className="border border-gray-200 rounded-lg px-2 py-1 text-xs w-16 text-center"
@@ -284,7 +285,7 @@ export function CompressPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="高"
+                placeholder={t('compress.height')}
                 value={customH}
                 onChange={(e) => setCustomH(e.target.value.replace(/\D/g, '').slice(0, 5))}
                 className="border border-gray-200 rounded-lg px-2 py-1 text-xs w-16 text-center"
@@ -293,16 +294,16 @@ export function CompressPage() {
           )}
           {mediaType === 'video' && (
             <>
-              <span className="text-xs text-gray-400">音频</span>
+              <span className="text-xs text-gray-400">{t('compress.audio')}</span>
               <select
                 value={audio}
                 onChange={(e) => setAudio(e.target.value)}
                 className="border border-gray-200 text-gray-500 text-xs rounded-xl px-3 py-1.5 bg-gray-50"
               >
-                <option value="">默认（跟随预设）</option>
-                <option value="reencode">保留 · AAC 重编码 128k</option>
-                <option value="copy">保留 · 原音轨（无损）</option>
-                <option value="none">去掉音频</option>
+                <option value="">{t('compress.audioDefault')}</option>
+                <option value="reencode">{t('compress.audioReencode')}</option>
+                <option value="copy">{t('compress.audioCopy')}</option>
+                <option value="none">{t('compress.audioNone')}</option>
               </select>
             </>
           )}
@@ -310,14 +311,9 @@ export function CompressPage() {
 
         {mode === 'simple' ? (
           <div className="flex items-center gap-3 flex-wrap mt-3 pt-3 border-t border-gray-100 min-h-[60px]">
-            <span className="text-xs text-gray-400">画质</span>
+            <span className="text-xs text-gray-400">{t('compress.quality')}</span>
             <div className="flex gap-1.5">
-              {([
-                ['mobile', 'APP'],
-                ['balanced', '均衡'],
-                ['smallest', '最小体积'],
-                ['highest', '高画质'],
-              ] as const).map(([k, label]) => (
+              {(['mobile', 'balanced', 'smallest', 'highest'] as const).map((k) => (
                 <button
                   key={k}
                   onClick={() => {
@@ -326,7 +322,7 @@ export function CompressPage() {
                   }}
                   className={`px-3 py-1.5 text-xs rounded-xl font-semibold ${preset === k ? 'bg-indigo-500 text-white' : 'bg-white border border-gray-200 text-gray-400'}`}
                 >
-                  {label}
+                  {t(`preset.${k}`)}
                 </button>
               ))}
             </div>
@@ -334,21 +330,21 @@ export function CompressPage() {
         ) : (
           <div className="flex items-center gap-3 flex-wrap mt-3 pt-3 border-t border-gray-100 min-h-[60px]">
             {mediaType !== 'video' && (
-              <label className="flex items-center gap-1.5 text-xs text-gray-400">图片质量
+              <label className="flex items-center gap-1.5 text-xs text-gray-400">{t('compress.imageQuality')}
                 <input type="number" min={0} max={100} value={advQuality} onChange={(e) => setAdvQuality(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1 text-xs w-16" />
               </label>
             )}
             {mediaType !== 'image' && (
               <>
-                <label className="flex items-center gap-1.5 text-xs text-gray-400">视频 CRF
+                <label className="flex items-center gap-1.5 text-xs text-gray-400">{t('compress.videoCrf')}
                   <input type="number" min={0} max={51} value={advCrf} onChange={(e) => setAdvCrf(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1 text-xs w-16" />
                 </label>
-                <label className="flex items-center gap-1.5 text-xs text-gray-400">码率
+                <label className="flex items-center gap-1.5 text-xs text-gray-400">{t('compress.bitrate')}
                   <input type="text" placeholder="1500k" value={advBitrate} onChange={(e) => setAdvBitrate(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1 text-xs w-20" />
                 </label>
                 <label className="flex items-center gap-1.5 text-xs text-gray-400">FPS
                   <select value={advFps} onChange={(e) => setAdvFps(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white">
-                    <option value="">原始</option>
+                    <option value="">{t('compress.fpsOriginal')}</option>
                     <option value="24">24</option>
                     <option value="30">30</option>
                     <option value="60">60</option>
@@ -364,16 +360,16 @@ export function CompressPage() {
         <div className="card p-5 mb-5">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <h2 className="font-bold text-gray-800">待压缩</h2>
-              <span className="text-xs text-gray-400">{pending.length} 个文件</span>
+              <h2 className="font-bold text-gray-800">{t('compress.pendingTitle')}</h2>
+              <span className="text-xs text-gray-400">{t('queue.fileCount', { n: pending.length })}</span>
               <span className="text-xs text-gray-300">·</span>
-              <span className="text-xs text-gray-400">最多 {maxPendingFor(mediaType)} 个</span>
+              <span className="text-xs text-gray-400">{t('compress.pendingMax', { n: maxPendingFor(mediaType) })}</span>
             </div>
             <button
               onClick={() => { pending.forEach((p) => p.thumb && URL.revokeObjectURL(p.thumb)); setPending([]) }}
               className="text-xs text-gray-400 hover:text-red-500 transition-colors inline-flex items-center gap-1"
             >
-              <Trash2 className="w-3 h-3" /> 清空
+              <Trash2 className="w-3 h-3" /> {t('compress.clear')}
             </button>
           </div>
           <div className="space-y-2 mb-4">
@@ -392,7 +388,7 @@ export function CompressPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-700 truncate">{item.file.name}</p>
-                    <p className="text-xs text-gray-400">{formatBytes(item.file.size)}{dims}{dur}{v ? ' · 视频' : ''}</p>
+                    <p className="text-xs text-gray-400">{formatBytes(item.file.size)}{dims}{dur}{v ? t('compress.videoTag') : ''}</p>
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); setPending((cur) => cur.filter((_, j) => j !== i)); if (item.thumb) URL.revokeObjectURL(item.thumb) }}
@@ -405,11 +401,11 @@ export function CompressPage() {
             })}
           </div>
           <p className="text-xs text-gray-400 mb-3">
-            点击下方按钮时以<strong className="text-indigo-500 font-semibold">当前</strong>参数（模式 / 画质 / 输出格式）为准
+            {t('compress.hintBefore')}<strong className="text-indigo-500 font-semibold">{t('compress.hintStrong')}</strong>{t('compress.hintAfter')}
           </p>
           <RequireLogin onAuthorized={submit}>
             <button className="w-full py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-200 text-white text-sm font-bold rounded-2xl shadow-sm transition-colors inline-flex items-center justify-center gap-2">
-              <Zap className="w-4 h-4" /> 开始压缩（{pending.length} 个）
+              <Zap className="w-4 h-4" /> {t('compress.start', { n: pending.length })}
             </button>
           </RequireLogin>
         </div>
@@ -418,8 +414,8 @@ export function CompressPage() {
       <div className="card p-6">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <h2 className="font-bold text-gray-800">任务队列</h2>
-            <span className="text-xs text-gray-400">{tasks.length} 个文件</span>
+            <h2 className="font-bold text-gray-800">{t('queue.title')}</h2>
+            <span className="text-xs text-gray-400">{t('queue.fileCount', { n: tasks.length })}</span>
           </div>
           <StatusPills tasks={tasks} />
         </div>
@@ -428,11 +424,11 @@ export function CompressPage() {
           <div className="flex items-center gap-3 mb-4 p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl">
             <div className="flex-1 min-w-0 text-xs text-indigo-500">
               {!batchSettled ? (
-                <>本批 {batchIds.length} 个文件 · 已完成 {batchDone.length}/{batchIds.length}，全部完成后可一键打包下载…</>
+                <>{t('compress.batchProgress', { done: batchDone.length, total: batchIds.length })}</>
               ) : batchDone.length > 0 ? (
-                <>本批已处理完成{batchDone.length < batchIds.length ? `（${batchDone.length}/${batchIds.length} 个成功）` : ''}</>
+                <>{t('compress.batchDone')}{batchDone.length < batchIds.length ? t('compress.batchPartial', { done: batchDone.length, total: batchIds.length }) : ''}</>
               ) : (
-                <>本批文件均压缩失败</>
+                <>{t('compress.batchAllFailed')}</>
               )}
             </div>
             {batchSettled && batchDone.length > 0 && (
@@ -440,13 +436,13 @@ export function CompressPage() {
                 href={api.batchDownloadUrl(batchDone.map((t) => t.id))}
                 className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold rounded-lg inline-flex items-center gap-1.5 transition-colors flex-shrink-0"
               >
-                <Download className="w-3.5 h-3.5" /> 下载本批 ZIP（{batchDone.length}）
+                <Download className="w-3.5 h-3.5" /> {t('compress.batchZip', { n: batchDone.length })}
               </a>
             )}
             <button
               onClick={() => setBatchIds([])}
               className="w-6 h-6 rounded-lg text-indigo-300 hover:text-indigo-500 hover:bg-indigo-100 transition-colors flex-shrink-0"
-              title="收起"
+              title={t('compress.collapse')}
             >
               <X className="w-4 h-4 mx-auto" />
             </button>
@@ -454,21 +450,21 @@ export function CompressPage() {
         )}
 
         <div className="grid grid-cols-12 text-xs text-gray-300 font-medium px-4 mb-2">
-          <div className="col-span-5">文件名</div>
-          <div className="col-span-3">进度</div>
-          <div className="col-span-2 text-center">压缩效果</div>
-          <div className="col-span-2 text-right">操作</div>
+          <div className="col-span-5">{t('queue.colName')}</div>
+          <div className="col-span-3">{t('queue.colProgress')}</div>
+          <div className="col-span-2 text-center">{t('queue.colEffect')}</div>
+          <div className="col-span-2 text-right">{t('queue.colActions')}</div>
         </div>
         <div className="space-y-1">
           {!user ? (
             <div className="text-center text-xs text-gray-300 py-12">
               <LogIn className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-              登录后查看您的任务
+              {t('queue.loginToView')}
             </div>
           ) : tasks.length === 0 ? (
             <div className="text-center text-xs text-gray-300 py-12">
               <Inbox className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-              暂无任务，上传文件开始压缩
+              {t('queue.emptyCompress')}
             </div>
           ) : (
             pageTasks.map((t) => <TaskRow key={t.id} task={t} onCompare={setCompareTask} onError={setErrorTask} />)
@@ -481,7 +477,7 @@ export function CompressPage() {
               disabled={page <= 0}
               className="px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors inline-flex items-center gap-1"
             >
-              <ChevronLeft className="w-3.5 h-3.5" /> 上一页
+              <ChevronLeft className="w-3.5 h-3.5" /> {t('queue.prev')}
             </button>
             <span className="text-gray-400 font-medium tabular-nums px-1">{page + 1} / {totalPages}</span>
             <button
@@ -489,13 +485,13 @@ export function CompressPage() {
               disabled={page >= totalPages - 1}
               className="px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors inline-flex items-center gap-1"
             >
-              下一页 <ChevronRight className="w-3.5 h-3.5" />
+              {t('queue.next')} <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
       </div>
 
-      {submitInfo && <LoadingOverlay message={`正在提交 ${submitInfo.done} / ${submitInfo.total}…`} />}
+      {submitInfo && <LoadingOverlay message={t('compress.submitting', { done: submitInfo.done, total: submitInfo.total })} />}
       {previewFile && <MediaPreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
       {compareTask && <CompareModal task={compareTask} onClose={() => setCompareTask(null)} />}
       {errorTask && <ErrorModal task={errorTask} onClose={() => setErrorTask(null)} />}

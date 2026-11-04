@@ -52,7 +52,7 @@ export const watermarkRoutes: FastifyPluginAsync = async (app) => {
     // 每个区域对应一个 delogo 滤镜；不设上限时构造的请求能让 ffmpeg 参数超长或长时间占用 worker。
     if (rawRegions.length > MAX_REGIONS) {
       filePart.file.resume()
-      return reply.code(400).send({ code: 'invalid_regions', message: `最多 ${MAX_REGIONS} 个水印区域` })
+      return reply.code(400).send({ code: 'invalid_regions', message: `at most ${MAX_REGIONS} regions` })
     }
 
     const parsed = Region.array().safeParse(rawRegions)

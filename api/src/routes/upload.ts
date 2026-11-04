@@ -72,7 +72,7 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
         filePart.file.resume()
         return reply.code(400).send({
           code: 'unsupported_format',
-          message: `${mediaType === 'image' ? '图片' : '视频'}不能输出为 '${result.data.output_format}' 格式`,
+          message: `${mediaType} cannot be output as '${result.data.output_format}'`,
         })
       }
     }

@@ -9,6 +9,7 @@ import { useDialog } from '../components/Dialog'
 import { ErrorModal } from '../components/ErrorModal'
 import { FfmpegBanner } from '../components/FfmpegBanner'
 import { StatusPills, TaskRow } from '../components/TaskRow'
+import { useI18n } from '../i18n'
 import { api } from '../lib/api'
 import { formatBytes } from '../lib/format'
 import type { Region, Task } from '../lib/types'
@@ -18,6 +19,7 @@ export function WatermarkPage() {
   useTasksPolling()
   const tasks = useTasksStore((s) => s.tasks.filter((t) => t.type === 'watermark'))
   const dialog = useDialog()
+  const { t, errorText } = useI18n()
   const { user, loginDirect } = useAuth()
 
   const [file, setFile] = useState<File | null>(null)
@@ -46,14 +48,14 @@ export function WatermarkPage() {
 
   useEffect(() => {
     if (!activeId) return
-    const t = tasks.find((x) => x.id === activeId)
-    if (!t) return
-    if (t.status === 'done' && !seen.current.has(t.id)) {
-      seen.current.add(t.id)
-      setCompareTask(t)
+    const task = tasks.find((x) => x.id === activeId)
+    if (!task) return
+    if (task.status === 'done' && !seen.current.has(task.id)) {
+      seen.current.add(task.id)
+      setCompareTask(task)
       setActiveId(null)
-    } else if (t.status === 'failed') {
-      setErrorTask(t)
+    } else if (task.status === 'failed') {
+      setErrorTask(task)
       setActiveId(null)
     }
   }, [tasks, activeId])
@@ -134,7 +136,7 @@ export function WatermarkPage() {
       reset()
       refreshTasks()
     } catch (e) {
-      await dialog.alert({ message: '提交失败：' + (e as Error).message, kind: 'error' })
+      await dialog.alert({ message: t('wm.submitFailed', { error: errorText(e) }), kind: 'error' })
     }
   }
 
@@ -152,7 +154,7 @@ export function WatermarkPage() {
               {n === 1 && <Upload className="w-4 h-4" />}
               {n === 2 && <Crosshair className="w-4 h-4" />}
               {n === 3 && <Download className="w-4 h-4" />}
-              {n === 1 ? '1. 上传文件' : n === 2 ? '2. 框选水印' : '3. 下载结果'}
+              {t(`wm.step${n}`)}
             </div>
             {n < 3 && <div className="h-px flex-1 bg-gray-200" />}
           </Fragment>
@@ -163,13 +165,13 @@ export function WatermarkPage() {
         <div className="card flex-1 p-5 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <span className="font-bold text-gray-700">预览图</span>
+              <span className="font-bold text-gray-700">{t('wm.preview')}</span>
               <span className="ml-2 text-xs text-gray-400">
-                {file ? `${file.name} · ${natural.w}×${natural.h} · ${formatBytes(file.size)}` : '尚未选择文件'}
+                {file ? `${file.name} · ${natural.w}×${natural.h} · ${formatBytes(file.size)}` : t('wm.noFile')}
               </span>
             </div>
             <button onClick={reset} className="text-xs px-3 py-1.5 bg-gray-50 border border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200 rounded-lg transition-colors inline-flex items-center gap-1.5">
-              <Trash2 className="w-3 h-3" /> 重置
+              <Trash2 className="w-3 h-3" /> {t('wm.reset')}
             </button>
           </div>
           <div
@@ -199,8 +201,8 @@ export function WatermarkPage() {
                 <div className="w-16 h-16 bg-white rounded-3xl shadow-sm border border-indigo-100 flex items-center justify-center mx-auto mb-4">
                   <CloudUpload className="w-7 h-7 text-indigo-400" />
                 </div>
-                <p className="text-gray-700 font-bold mb-1">点击或拖拽上传文件</p>
-                <p className="text-gray-400 text-sm">图片或视频</p>
+                <p className="text-gray-700 font-bold mb-1">{t('wm.dropTitle')}</p>
+                <p className="text-gray-400 text-sm">{t('wm.dropHint')}</p>
               </div>
             ) : (
               <div
@@ -222,7 +224,7 @@ export function WatermarkPage() {
                   const sy = m.height / natural.h
                   return (
                     <div key={i} className="wm-box" style={{ left: m.left + r.x * sx, top: m.top + r.y * sy, width: r.w * sx, height: r.h * sy }}>
-                      <span className="lbl">水印 {i + 1}</span>
+                      <span className="lbl">{t('wm.regionLabel', { n: i + 1 })}</span>
                       <span className="del" onClick={(e) => { e.stopPropagation(); setRegions((cur) => cur.filter((_, j) => j !== i)) }}>
                         <X className="w-2.5 h-2.5" />
                       </span>
@@ -241,25 +243,25 @@ export function WatermarkPage() {
             )}
           </div>
           <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
-            <Lightbulb className="w-3 h-3 text-indigo-300" /> 纯色/渐变背景效果最佳，复杂纹理可能留有痕迹
+            <Lightbulb className="w-3 h-3 text-indigo-300" /> {t('wm.tip')}
           </div>
         </div>
 
         <div className="w-60 flex flex-col gap-4 flex-shrink-0">
           <div className="card p-4 flex-1">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-gray-700">已标记区域</span>
-              <span className="text-xs bg-amber-100 text-amber-600 font-bold px-2 py-0.5 rounded-full">{regions.length} 个</span>
+              <span className="text-xs font-bold text-gray-700">{t('wm.marked')}</span>
+              <span className="text-xs bg-amber-100 text-amber-600 font-bold px-2 py-0.5 rounded-full">{t('wm.count', { n: regions.length })}</span>
             </div>
             <div className="space-y-2 mb-4">
               {regions.length === 0 ? (
-                <p className="text-xs text-gray-300 text-center py-4">尚未标记任何区域</p>
+                <p className="text-xs text-gray-300 text-center py-4">{t('wm.noRegions')}</p>
               ) : (
                 regions.map((r, i) => (
                   <div key={i} className="flex items-start gap-2 p-2.5 bg-amber-50 rounded-xl border border-amber-100">
                     <div className="w-3 h-3 bg-amber-400 rounded-sm mt-0.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-600">水印 {i + 1}</p>
+                      <p className="text-xs font-semibold text-gray-600">{t('wm.regionLabel', { n: i + 1 })}</p>
                       <p className="text-xs text-gray-400 mt-0.5">x:{r.x} y:{r.y} · {r.w}×{r.h}</p>
                     </div>
                     <button onClick={() => setRegions((cur) => cur.filter((_, j) => j !== i))} className="text-red-300 hover:text-red-500 flex-shrink-0">
@@ -270,13 +272,13 @@ export function WatermarkPage() {
               )}
             </div>
             <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-600 leading-relaxed">
-              <Lightbulb className="w-3 h-3 inline mr-1.5" /> 用鼠标在预览图上拖拽即可标记
+              <Lightbulb className="w-3 h-3 inline mr-1.5" /> {t('wm.dragHint')}
             </div>
           </div>
 
           <RequireLogin onAuthorized={submit}>
             <button disabled={!file || regions.length === 0} className="w-full py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white text-sm font-bold rounded-2xl shadow-sm transition-colors inline-flex items-center justify-center gap-2">
-              <Sparkles className="w-4 h-4" /> 提交任务
+              <Sparkles className="w-4 h-4" /> {t('wm.submit')}
             </button>
           </RequireLogin>
         </div>
@@ -285,25 +287,25 @@ export function WatermarkPage() {
       <div className="card p-6">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <h2 className="font-bold text-gray-800">任务队列</h2>
-            <span className="text-xs text-gray-400">{tasks.length} 个文件</span>
+            <h2 className="font-bold text-gray-800">{t('queue.title')}</h2>
+            <span className="text-xs text-gray-400">{t('queue.fileCount', { n: tasks.length })}</span>
           </div>
           <StatusPills tasks={tasks} />
         </div>
         <div className="grid grid-cols-12 text-xs text-gray-300 font-medium px-4 mb-2">
-          <div className="col-span-5">文件名</div>
-          <div className="col-span-3">进度</div>
-          <div className="col-span-2 text-center">区域</div>
-          <div className="col-span-2 text-right">操作</div>
+          <div className="col-span-5">{t('queue.colName')}</div>
+          <div className="col-span-3">{t('queue.colProgress')}</div>
+          <div className="col-span-2 text-center">{t('queue.colRegions')}</div>
+          <div className="col-span-2 text-right">{t('queue.colActions')}</div>
         </div>
         <div className="space-y-1">
           {!user ? (
             <div className="text-center text-xs text-gray-300 py-12">
               <LogIn className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-              登录后查看您的任务
+              {t('queue.loginToView')}
             </div>
           ) : tasks.length === 0 ? (
-            <p className="text-center text-xs text-gray-300 py-12">暂无任务，上传文件 + 框选水印开始处理</p>
+            <p className="text-center text-xs text-gray-300 py-12">{t('queue.emptyWatermark')}</p>
           ) : (
             tasks.slice(0, 5).map((t) => <TaskRow key={t.id} task={t} onCompare={setCompareTask} onError={setErrorTask} />)
           )}
@@ -313,7 +315,7 @@ export function WatermarkPage() {
             to="/files"
             className="mt-3 flex items-center justify-center gap-1 text-xs text-indigo-500 hover:text-indigo-600 font-semibold py-2 rounded-xl hover:bg-indigo-50 transition-colors"
           >
-            查看更多（还有 {tasks.length - 5} 个）
+            {t('queue.more', { n: tasks.length - 5 })}
             <ChevronRight className="w-3 h-3" />
           </Link>
         )}

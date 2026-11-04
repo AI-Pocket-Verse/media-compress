@@ -30,7 +30,7 @@ export const filesRoutes: FastifyPluginAsync = async (app) => {
 
       // 处理中删除会让 ffmpeg 继续写出无人认领的输出文件，等任务结束后再删。
       if (task.status === 'processing') {
-        return reply.code(409).send({ code: 'task_processing', message: '任务正在处理中，请等待完成后再删除' })
+        return reply.code(409).send({ code: 'task_processing', message: 'task is still processing; delete it after it finishes' })
       }
 
       for (const rel of [task.input.path, task.output?.path].filter(Boolean) as string[]) {

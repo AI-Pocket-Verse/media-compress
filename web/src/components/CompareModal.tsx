@@ -1,6 +1,7 @@
 import { ArrowLeftRight, Download, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { useI18n } from '../i18n'
 import { api } from '../lib/api'
 import { formatBytes, formatMediaInfo } from '../lib/format'
 import { isVideo } from '../lib/media'
@@ -8,16 +9,17 @@ import type { Task } from '../lib/types'
 
 export function CompareModal({ task, onClose }: { task: Task; onClose: () => void }) {
   const video = (task.input.mime || '').startsWith('video') || isVideo(task.input.filename)
-  const title = task.type === 'watermark' ? '去水印对比' : '压缩对比'
+  const { t } = useI18n()
+  const title = task.type === 'watermark' ? t('compare.titleWatermark') : t('compare.titleCompress')
 
   let meta = ''
   if (task.type === 'compress' && task.result) {
     const ratio = Math.round((task.result.compression_ratio || 0) * 100)
-    const label = ratio > 0 ? `-${ratio}%` : ratio < 0 ? `+${-ratio}%` : '≈ 无变化'
+    const label = ratio > 0 ? `-${ratio}%` : ratio < 0 ? `+${-ratio}%` : t('task.noChange')
     meta = `${formatBytes(task.input.size)} → ${formatBytes(task.output?.size ?? 0)} · ${label}`
   } else if (task.type === 'watermark') {
     const n = task.options.regions?.length ?? 0
-    meta = `去水印 · ${n} 个区域 · ${formatBytes(task.input.size)} → ${formatBytes(task.output?.size ?? 0)}`
+    meta = t('compare.watermarkMeta', { n, from: formatBytes(task.input.size), to: formatBytes(task.output?.size ?? 0) })
   }
   // formatMediaInfo expects ProbeMeta but Task carries metadata as `unknown`
   // (preserves forward-compat with newer probe fields). Cast is fine.
@@ -54,14 +56,14 @@ export function CompareModal({ task, onClose }: { task: Task; onClose: () => voi
           <div className="grid grid-cols-2 gap-3">
             <div>
               <p className="text-xs text-gray-500 mb-1.5 flex items-baseline justify-between gap-2">
-                <span>原视频</span>
+                <span>{t('compare.originalVideo')}</span>
                 <span className="text-[11px] text-gray-400 font-mono">{inputSizeLabel}</span>
               </p>
               <video src={before} controls className="w-full rounded-xl bg-black" style={{ maxHeight: '60vh' }} />
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1.5 flex items-baseline justify-between gap-2">
-                <span>处理后</span>
+                <span>{t('compare.processed')}</span>
                 {outputSizeLabel && (
                   <span className="text-[11px] text-indigo-500 font-mono font-semibold">{outputSizeLabel}</span>
                 )}
@@ -73,11 +75,11 @@ export function CompareModal({ task, onClose }: { task: Task; onClose: () => voi
           <>
             <div className="grid grid-cols-2 gap-3 mb-2">
               <p className="text-xs text-gray-500 flex items-baseline justify-between gap-2">
-                <span>原图</span>
+                <span>{t('compare.originalImage')}</span>
                 <span className="text-[11px] text-gray-400 font-mono">{inputSizeLabel}</span>
               </p>
               <p className="text-xs text-gray-500 flex items-baseline justify-between gap-2">
-                <span>处理后</span>
+                <span>{t('compare.processed')}</span>
                 {outputSizeLabel && (
                   <span className="text-[11px] text-indigo-500 font-mono font-semibold">{outputSizeLabel}</span>
                 )}
@@ -88,8 +90,8 @@ export function CompareModal({ task, onClose }: { task: Task; onClose: () => voi
         )}
         <p className="text-xs text-gray-500 mt-4 leading-relaxed">
           {meta}
-          {probeInput && <><br /><span className="text-gray-400">原始文件 · {probeInput}</span></>}
-          {probeOutput && <><br /><span className="text-gray-400">处理后 · {probeOutput}</span></>}
+          {probeInput && <><br /><span className="text-gray-400">{t('compare.originalFile', { info: probeInput })}</span></>}
+          {probeOutput && <><br /><span className="text-gray-400">{t('compare.processedFile', { info: probeOutput })}</span></>}
         </p>
         <div className="flex justify-end mt-4 gap-2">
           <a
@@ -97,7 +99,7 @@ export function CompareModal({ task, onClose }: { task: Task; onClose: () => voi
             download={task.output?.filename}
             className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold rounded-xl inline-flex items-center gap-2"
           >
-            <Download className="w-4 h-4" /> 下载结果
+            <Download className="w-4 h-4" /> {t('compare.download')}
           </a>
         </div>
       </div>
@@ -106,6 +108,7 @@ export function CompareModal({ task, onClose }: { task: Task; onClose: () => voi
 }
 
 function ImageSlider({ before, after }: { before: string; after: string }) {
+  const { t } = useI18n()
   const rootRef = useRef<HTMLDivElement>(null)
   const [pct, setPct] = useState(50)
   const dragging = useRef(false)
@@ -141,8 +144,8 @@ function ImageSlider({ before, after }: { before: string; after: string }) {
           <ArrowLeftRight className="w-3 h-3 text-gray-400" />
         </div>
       </div>
-      <div className="absolute bottom-3 left-3 z-10 bg-black/50 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-lg">原图</div>
-      <div className="absolute bottom-3 right-3 z-10 bg-black/50 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-lg">处理后</div>
+      <div className="absolute bottom-3 left-3 z-10 bg-black/50 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-lg">{t('compare.originalImage')}</div>
+      <div className="absolute bottom-3 right-3 z-10 bg-black/50 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-lg">{t('compare.processed')}</div>
     </div>
   )
 }

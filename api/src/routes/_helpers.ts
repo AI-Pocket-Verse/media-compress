@@ -32,7 +32,7 @@ export async function requireFfmpeg(req: FastifyRequest, reply: FastifyReply) {
     }
     return reply.code(503).send({
       code: 'ffmpeg_unavailable',
-      message: '服务器的 FFmpeg 无法运行，暂时不能处理文件。请检查 FFMPEG_PATH / FFPROBE_PATH，详见 README「FFmpeg 要求」。',
+      message: 'ffmpeg / ffprobe cannot run on this server. Check FFMPEG_PATH / FFPROBE_PATH (see "FFmpeg requirements" in the README).',
     })
   }
 }

@@ -31,7 +31,7 @@ export function hostGuard(allowed: Set<string> | null) {
     if (host && allowed.has(host) && originOk) return
     return reply.code(403).send({
       code: 'host_not_allowed',
-      message: '本地模式只接受本机访问。用局域网 IP 或域名访问时，请把它加入 api 的 ALLOWED_HOSTS。',
+      message: 'local mode only accepts requests from this machine; add the host name to ALLOWED_HOSTS to allow it',
     })
   }
 }

@@ -1,6 +1,8 @@
 import { AlertCircle, AlertTriangle, CheckCircle, Copy, HelpCircle, Info, X } from 'lucide-react'
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 
+import { useI18n } from '../i18n'
+
 type DialogKind = 'info' | 'warning' | 'error' | 'success' | 'confirm'
 
 interface DialogOptions {
@@ -50,6 +52,7 @@ async function copyToClipboard(text: string): Promise<void> {
 export function DialogProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<PendingState | null>(null)
   const [copied, setCopied] = useState(false)
+  const { t } = useI18n()
 
   const open = useCallback(
     (opts: DialogOptions | string, withCancel: boolean) =>
@@ -90,7 +93,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="font-bold text-gray-800">
-                      {pending.title ?? (pending.withCancel ? '请确认' : kind === 'error' ? '出错了' : '提示')}
+                      {pending.title ?? (pending.withCancel ? t('common.confirmTitle') : kind === 'error' ? t('common.errorTitle') : t('common.infoTitle'))}
                     </h2>
                     {kind === 'error' && (
                       <button
@@ -102,7 +105,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                         className="text-indigo-500 hover:text-indigo-600 font-medium inline-flex items-center gap-1.5 text-xs flex-shrink-0"
                       >
                         <Copy className="w-3 h-3" />
-                        <span>{copied ? '已复制' : '复制'}</span>
+                        <span>{copied ? t('common.copied') : t('common.copy')}</span>
                       </button>
                     )}
                   </div>
@@ -112,11 +115,11 @@ export function DialogProvider({ children }: { children: ReactNode }) {
               <div className="px-6 pb-6 flex justify-end gap-2">
                 {pending.withCancel && (
                   <button onClick={() => close(false)} className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors">
-                    {pending.cancelText ?? '取消'}
+                    {pending.cancelText ?? t('common.cancel')}
                   </button>
                 )}
                 <button onClick={() => close(true)} className={`px-5 py-2 text-sm text-white rounded-xl font-medium transition-colors ${okClass}`}>
-                  {pending.okText ?? (pending.withCancel ? '确定' : '好的')}
+                  {pending.okText ?? (pending.withCancel ? t('common.ok') : t('common.gotIt'))}
                 </button>
               </div>
             </div>

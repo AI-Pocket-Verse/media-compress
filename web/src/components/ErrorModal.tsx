@@ -1,11 +1,13 @@
 import { AlertCircle, Copy, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { useI18n } from '../i18n'
 import type { Task } from '../lib/types'
 
 export function ErrorModal({ task, onClose }: { task: Task; onClose: () => void }) {
   const [copied, setCopied] = useState(false)
-  const title = task.type === 'watermark' ? '去水印失败' : '压缩失败'
+  const { t } = useI18n()
+  const title = task.type === 'watermark' ? t('errorModal.watermarkFailed') : t('errorModal.compressFailed')
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -52,19 +54,19 @@ export function ErrorModal({ task, onClose }: { task: Task; onClose: () => void 
         </div>
         <div className="p-6 pt-4 overflow-auto flex-1">
           <p className="text-xs text-gray-500 mb-2 flex items-center justify-between">
-            <span>FFmpeg 输出（完整）</span>
+            <span>{t('errorModal.output')}</span>
             <button onClick={copy} className="text-indigo-500 hover:text-indigo-600 font-medium inline-flex items-center gap-1.5 text-xs">
               <Copy className="w-3 h-3" />
-              <span>{copied ? '已复制' : '复制'}</span>
+              <span>{copied ? t('common.copied') : t('common.copy')}</span>
             </button>
           </p>
           <pre className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 whitespace-pre-wrap break-all font-mono leading-relaxed select-all" style={{ maxHeight: '45vh', overflow: 'auto' }}>
-            {(task.error || '（无详细错误信息）').trim()}
+            {(task.error?.startsWith('internal_error') ? t('errorModal.internal') : task.error || t('errorModal.noDetail')).trim()}
           </pre>
         </div>
         <div className="p-6 pt-0 flex justify-end gap-2">
           <button onClick={onClose} className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors">
-            关闭
+            {t('common.close')}
           </button>
         </div>
       </div>

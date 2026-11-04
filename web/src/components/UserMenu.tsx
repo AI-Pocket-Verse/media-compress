@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 
 import { UserMenu as SsoUserMenu, useAuth } from '@media-compress/auth-client-web'
 
+import { useI18n } from '../i18n'
+
 /**
  * 右上角身份菜单 —— 复用共享的 `<UserMenu>`，配置为：
  *   - 触发器只显示头像（avatarOnly），不显示姓名；
@@ -12,6 +14,7 @@ import { UserMenu as SsoUserMenu, useAuth } from '@media-compress/auth-client-we
 export function UserMenu() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t } = useI18n()
   const userId = user?.id ?? null
   const openId = user?.open_id ?? null
   return (
@@ -19,6 +22,10 @@ export function UserMenu() {
       onSettingsClick={() => navigate('/settings')}
       subtitle={<IdentityIds userId={userId} openId={openId} />}
       avatarOnly
+      settingsLabel={t('nav.settings')}
+      logoutLabel={t('nav.logout')}
+      loginLabel={t('nav.login')}
+      localUserName={t('nav.localUser')}
     />
   )
 }
@@ -35,6 +42,7 @@ function IdentityIds({ userId, openId }: { userId: string | null; openId: string
 
 function CopyId({ label, value }: { label: string; value: string | null }) {
   const [copied, setCopied] = useState(false)
+  const { t } = useI18n()
   if (!value) return null
   const copy = () => {
     void navigator.clipboard
@@ -51,13 +59,13 @@ function CopyId({ label, value }: { label: string; value: string | null }) {
     <button
       type="button"
       onClick={copy}
-      title={`点击复制 ${label}：${value}`}
+      title={t('nav.copyIdTitle', { label, value })}
       className="flex w-full items-center gap-1.5 text-left"
     >
       <span className="w-[58px] shrink-0 text-[10px] uppercase tracking-wide text-gray-400">{label}</span>
       <span className="flex-1 truncate font-mono text-[11px] text-gray-500">{value}</span>
       <span className={`shrink-0 text-[10px] ${copied ? 'text-emerald-500' : 'text-indigo-400'}`}>
-        {copied ? '已复制' : '复制'}
+        {copied ? t('common.copied') : t('common.copy')}
       </span>
     </button>
   )

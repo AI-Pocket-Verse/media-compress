@@ -43,12 +43,6 @@ export function formatMediaInfo(meta: ProbeMeta | null | undefined): string {
   return parts.join(' · ')
 }
 
-export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  // 固定北京时间展示,与运行环境/访问者时区无关。
-  try { return new Date(iso).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) } catch { return String(iso) }
-}
-
 export function escapeHtml(str: unknown): string {
   return String(str ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c),

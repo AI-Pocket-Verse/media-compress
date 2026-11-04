@@ -76,7 +76,7 @@ async function processTask(taskId: string): Promise<void> {
   } catch (e) {
     console.error(`[worker] task ${taskId} failed:`, e)
     // 只把已整理过的 ffmpeg 错误给用户；其他异常（可能带服务器路径）只写日志。
-    const msg = e instanceof FfmpegError ? e.message : 'internal_error: 处理失败，请稍后重试'
+    const msg = e instanceof FfmpegError ? e.message : 'internal_error: processing failed, please retry'
     await taskStore.update(taskId, { status: 'failed', error: msg })
   }
 }
