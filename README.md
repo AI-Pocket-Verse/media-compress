@@ -136,7 +136,7 @@ The api loads its configuration with Node's native `--env-file`: `pnpm dev` read
 
 ## Optional: multi-user login
 
-When not set, it runs in local single-user mode. If several people need to use it and their files must be isolated per person, connect a login service. The project is written against the API of the companion Feishu (Lark) SSO service feishu-sso (coming soon as open source); you can also implement a compatible login service yourself, following "Login service API" below.
+When not set, it runs in local single-user mode. If several people need to use it and their files must be isolated per person, connect a login service. The project is written against the API of the companion Feishu (Lark) SSO service [feishu-sso](https://github.com/AI-Pocket-Verse/feishu-sso); you can also implement a compatible login service yourself, following "Login service API" below.
 
 ### Setup
 
