@@ -4,7 +4,9 @@ English | [简体中文](README-CN.md)
 
 A self-hosted image / video compression and watermark removal tool built on FFmpeg. Files are processed only on your own machine or server and are never uploaded to any third-party service.
 
-![Compress page](docs/screenshots/en/compress.png)
+![Demo: compressing images and a video, comparing results, removing a watermark, files and settings](docs/screenshots/en/demo.gif)
+
+▶ [Watch the full-quality demo video (MP4, 62 s)](docs/media/demo-en.mp4)
 
 - **Compress**: one-click compression with four presets, or Advanced mode to customize quality, CRF, bitrate, frame rate, resolution and output format; supports batch upload and dragging in folders
 - **Remove watermark**: draw a box around the watermark on the preview, and the FFmpeg `delogo` filter erases it by interpolating from the surrounding pixels; works for both images and videos
@@ -16,7 +18,9 @@ A self-hosted image / video compression and watermark removal tool built on FFmp
 | --- | --- |
 | ![Selecting the watermark](docs/screenshots/en/watermark.png) | ![Before / after watermark removal](docs/screenshots/en/watermark-compare.png) |
 
-![Files](docs/screenshots/en/files.png)
+| Compress | Files |
+| --- | --- |
+| ![Compress page](docs/screenshots/en/compress.png) | ![Files](docs/screenshots/en/files.png) |
 
 ## Quick start
 
@@ -223,15 +227,24 @@ Tech stack: Fastify + Prisma (SQLite) backend, React + Vite + Tailwind frontend,
 | `pnpm typecheck` | Type-check all packages |
 | `pnpm test` | All unit tests (extra real-transcoding tests run when FFmpeg is installed locally) |
 | `pnpm --filter @media-compress/api db:migrate` | Generate and apply a migration after changing `api/prisma/schema.prisma` |
+| `pnpm demo-video` | Re-record the README demo in both languages (see below) |
 
 ```
 api/          Fastify backend: uploads, task queue, FFmpeg processing, downloads and automatic cleanup
 web/          React frontend
 packages/     Small packages shared by api and web (login clients, HTTP client, logging, Tailwind preset, etc.)
 deploy/       systemd / nginx templates and SQLite operations scripts
-docs/         README screenshots (en/ and zh/)
+docs/         README screenshots and demo (en/ and zh/)
+scripts/      Demo recording script
 Dockerfile    Single-container image (the api also serves the frontend)
 ```
+
+### Re-recording the demo
+
+`pnpm demo-video` runs [`scripts/demo-media.mjs`](scripts/demo-media.mjs). It generates its own sample images and video with FFmpeg, builds the web app, starts the real api on port 4199 with a throwaway database under `.tmp/demo-media/`, and drives the locally installed Google Chrome with Playwright, once per language. Output: `docs/screenshots/{en,zh}/demo.gif` and `docs/media/demo-{en,zh}.mp4`. Pass `en` or `zh` to record one language.
+
+- Needs `ffmpeg` on your PATH and Playwright's recorder (`pnpm exec playwright install ffmpeg`).
+- To use Playwright's bundled Chromium instead of Chrome, run `pnpm exec playwright install chromium` and set `PW_CHANNEL=` (empty).
 
 ## Security
 

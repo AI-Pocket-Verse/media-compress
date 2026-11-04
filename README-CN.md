@@ -4,7 +4,9 @@
 
 自托管的图片 / 视频压缩与去水印工具，基于 FFmpeg。文件只在你自己的机器或服务器上处理，不上传任何第三方服务。
 
-![压缩页面](docs/screenshots/zh/compress.png)
+![演示：压缩图片和视频、前后对比、去水印、文件管理与设置](docs/screenshots/zh/demo.gif)
+
+▶ [观看高清演示视频（MP4，62 秒）](docs/media/demo-zh.mp4)
 
 - **压缩**：四档预设一键压缩，或高级模式自定画质、CRF、码率、帧率、分辨率与输出格式；支持批量上传和文件夹拖入
 - **去水印**：在预览图上框选水印区域，用 FFmpeg `delogo` 滤镜按周边像素插值抹除，图片和视频都支持
@@ -16,7 +18,9 @@
 | --- | --- |
 | ![框选水印](docs/screenshots/zh/watermark.png) | ![去水印前后对比](docs/screenshots/zh/watermark-compare.png) |
 
-![文件管理](docs/screenshots/zh/files.png)
+| 压缩 | 文件管理 |
+| --- | --- |
+| ![压缩页面](docs/screenshots/zh/compress.png) | ![文件管理](docs/screenshots/zh/files.png) |
 
 ## 快速开始
 
@@ -223,15 +227,24 @@ sudo ln -sf /etc/nginx/sites-available/media-compress /etc/nginx/sites-enabled/ 
 | `pnpm typecheck` | 全部包类型检查 |
 | `pnpm test` | 全部单元测试（本机装有 FFmpeg 时会额外跑真实转码测试） |
 | `pnpm --filter @media-compress/api db:migrate` | 修改 `api/prisma/schema.prisma` 后生成并应用迁移 |
+| `pnpm demo-video` | 重新录制中英两版 README 演示（见下） |
 
 ```
 api/          Fastify 后端：上传、任务队列、FFmpeg 处理、下载与自动清理
 web/          React 前端
 packages/     api 与 web 共用的小工具包（登录客户端、HTTP 客户端、日志、Tailwind 预设等）
 deploy/       systemd / nginx 模板与 SQLite 运维脚本
-docs/         README 截图（en/、zh/ 两套）
+docs/         README 截图与演示（en/、zh/ 两套）
+scripts/      演示录制脚本
 Dockerfile    单容器镜像（api 同时托管前端）
 ```
+
+### 重新录制演示
+
+`pnpm demo-video` 运行 [`scripts/demo-media.mjs`](scripts/demo-media.mjs)：用 FFmpeg 自生成示例图片和视频，构建 web，在 4199 端口启动真实 api（数据库与文件放在 `.tmp/demo-media/`，用完即弃），再用 Playwright 驱动本机 Google Chrome 按语言各录一遍。输出 `docs/screenshots/{en,zh}/demo.gif` 和 `docs/media/demo-{en,zh}.mp4`；加参数 `en` 或 `zh` 只录一种语言。
+
+- 需要 PATH 里有 `ffmpeg`，以及 Playwright 的录屏组件（`pnpm exec playwright install ffmpeg`）。
+- 不用 Chrome 而用 Playwright 自带的 Chromium 时，先 `pnpm exec playwright install chromium`，再设置 `PW_CHANNEL=`（留空）。
 
 ## 安全
 
